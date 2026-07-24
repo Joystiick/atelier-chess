@@ -59,8 +59,11 @@ export async function POST(request: Request, { params }: Params) {
   const elapsed = Math.max(0, Date.now() - new Date(game.updatedAt).getTime());
   let whiteClockMs = game.whiteClockMs;
   let blackClockMs = game.blackClockMs;
-  if (color === "w") whiteClockMs = Math.max(0, whiteClockMs - elapsed);
-  else blackClockMs = Math.max(0, blackClockMs - elapsed);
+  if (color === "w") {
+    whiteClockMs = Math.max(0, whiteClockMs - elapsed) + (game.incrementMs ?? 0);
+  } else {
+    blackClockMs = Math.max(0, blackClockMs - elapsed) + (game.incrementMs ?? 0);
+  }
 
   let status: "waiting" | "active" | "finished" | "abandoned" = "active";
   let winner: string | null = null;

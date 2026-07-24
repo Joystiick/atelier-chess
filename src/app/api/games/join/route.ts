@@ -4,11 +4,19 @@ import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
 import { sanitizeDisplayName } from "@/lib/names";
 import { gameChannel, getPusher } from "@/lib/pusher/server";
+import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+
 export async function POST(request: Request) {
+  const rl = rateLimit(`join:${clientKey(request)}`, 20, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Too many joins — wait a moment" }, { status: 429 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     code?: string;
     displayName?: string;
@@ -22,6 +30,13 @@ export async function POST(request: Request) {
   const [game] = await db.select().from(games).where(eq(games.code, code)).limit(1);
   if (!game) {
     return NextResponse.json({ error: "Table not found" }, { status: 404 });
+  }
+  if (Date.now() - new Date(game.createdAt).getTime() > ROOM_TTL_MS) {
+    await db
+      .update(games)
+      .set({ status: "abandoned", result: "Expired", updatedAt: new Date() })
+      .where(eq(games.id, game.id));
+    return NextResponse.json({ error: "This table expired" }, { status: 410 });
   }
   if (game.status === "finished" || game.status === "abandoned") {
     return NextResponse.json({ error: "This table is closed" }, { status: 409 });

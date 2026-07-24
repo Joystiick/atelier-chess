@@ -3,13 +3,22 @@
 import { AI_RIVALS, type AiLevel } from "@/lib/chess/engine";
 import { playSound } from "@/lib/chess/sound";
 import {
+  TIME_CONTROLS,
   getCachedDisplayName,
+  getElo,
+  getLastOpponent,
+  getPreferredTimeControl,
+  getRecentTables,
+  hasSeenHowTo,
   sanitizeDisplayName,
   setCachedDisplayName,
+  setPreferredTimeControl,
+  setSeenHowTo,
+  type TimeControlId,
 } from "@/lib/names";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 type Step = "name" | "modes" | "human" | "ai";
 
@@ -28,6 +37,20 @@ function PlayPageInner() {
   const [code, setCode] = useState(joinParam);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [timeControl, setTimeControl] = useState<TimeControlId>("10|0");
+  const [recent, setRecent] = useState<{ code: string; opponent: string }[]>([]);
+  const [lastOpp, setLastOpp] = useState("");
+  const [elo, setElo] = useState(1200);
+
+  useEffect(() => {
+    setTimeControl(getPreferredTimeControl());
+    setRecent(getRecentTables());
+    setLastOpp(getLastOpponent());
+    setElo(getElo());
+    if (!hasSeenHowTo()) {
+      // soft nudge — don't force
+    }
+  }, []);
 
   const confirmName = () => {
     const cleaned = sanitizeDisplayName(name);
@@ -45,11 +68,12 @@ function PlayPageInner() {
   const createGame = async () => {
     setBusy(true);
     setError("");
+    setPreferredTimeControl(timeControl);
     try {
       const res = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: name }),
+        body: JSON.stringify({ displayName: name, timeControl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -62,7 +86,7 @@ function PlayPageInner() {
     }
   };
 
-  const joinGame = async () => {
+  const joinGame = async (joinCode = code) => {
     setBusy(true);
     setError("");
     try {
@@ -70,7 +94,7 @@ function PlayPageInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: code.replace(/\D/g, ""),
+          code: joinCode.replace(/\D/g, ""),
           displayName: name,
         }),
       });
@@ -97,7 +121,8 @@ function PlayPageInner() {
             Your name
           </h1>
           <p className="text-[var(--mist)]">
-            Change it every visit. Saved on this device.
+            Saved on this device. Local Elo {elo}
+            {lastOpp ? ` · Last faced ${lastOpp}` : ""}
           </p>
           <input
             className="field"
@@ -112,6 +137,9 @@ function PlayPageInner() {
           <button type="button" className="btn-primary w-full" onClick={confirmName}>
             Continue
           </button>
+          <Link href="/how-to" className="block text-center text-sm text-[var(--brass)]">
+            How to play
+          </Link>
         </section>
       )}
 
@@ -120,7 +148,9 @@ function PlayPageInner() {
           <h1 className="font-[family-name:var(--font-display)] text-4xl">
             Choose a mode
           </h1>
-          <p className="mb-2 text-[var(--mist)]">Playing as {name}</p>
+          <p className="mb-2 text-[var(--mist)]">
+            Playing as {name} · Elo {elo}
+          </p>
           <button
             type="button"
             className="mode-card"
@@ -143,15 +173,79 @@ function PlayPageInner() {
             <h3>AI</h3>
             <p>Easy, Medium, or Hard — powered by Garbochess.</p>
           </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/puzzle");
+            }}
+          >
+            <h3>Daily puzzle</h3>
+            <p>One mate puzzle refreshed each day.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/puzzle/rush");
+            }}
+          >
+            <h3>Puzzle rush</h3>
+            <p>Solve a streak of mates against the clock.</p>
+          </button>
+          {recent.length > 0 && (
+            <div className="panel mt-2">
+              <h2 className="panel-title">Recent tables</h2>
+              <ul className="space-y-1 text-sm">
+                {recent.map((t) => (
+                  <li key={t.code}>
+                    <button
+                      type="button"
+                      className="text-[var(--brass)] hover:underline"
+                      onClick={() => {
+                        setCode(t.code);
+                        setStep("human");
+                      }}
+                    >
+                      {t.code} · {t.opponent}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <button type="button" className="btn-ghost mt-2" onClick={() => setStep("name")}>
             Change name
           </button>
+          <Link
+            href="/how-to"
+            className="block text-center text-sm text-[var(--mist)]"
+            onClick={() => setSeenHowTo()}
+          >
+            How to play
+          </Link>
         </section>
       )}
 
       {step === "human" && (
         <section className="space-y-4">
           <h1 className="font-[family-name:var(--font-display)] text-3xl">Human</h1>
+          <label className="block text-sm text-[var(--mist)]">
+            Time control
+            <select
+              className="field mt-1"
+              value={timeControl}
+              onChange={(e) => setTimeControl(e.target.value as TimeControlId)}
+            >
+              {(Object.keys(TIME_CONTROLS) as TimeControlId[]).map((id) => (
+                <option key={id} value={id}>
+                  {TIME_CONTROLS[id].label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="btn-primary w-full"
@@ -179,6 +273,14 @@ function PlayPageInner() {
           >
             Enter code
           </button>
+          {code.length === 8 && (
+            <Link
+              href={`/game/${code}?spectate=1`}
+              className="block text-center text-sm text-[var(--brass)]"
+            >
+              Spectate this table
+            </Link>
+          )}
           {error && <p className="text-sm text-red-300">{error}</p>}
           <button type="button" className="btn-ghost" onClick={() => setStep("modes")}>
             Back

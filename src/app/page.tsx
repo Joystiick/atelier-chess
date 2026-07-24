@@ -10,6 +10,15 @@ export default function HomePage() {
           Play a friend with a code, or face the AI.
         </p>
         <PlayButton />
+        <p className="mt-6 text-sm">
+          <Link href="/how-to" className="text-[var(--brass)] hover:underline">
+            How to play
+          </Link>
+          {" · "}
+          <Link href="/puzzle" className="text-[var(--brass)] hover:underline">
+            Daily puzzle
+          </Link>
+        </p>
         <p className="mt-8 text-xs text-[var(--mist)]">
           Engine by{" "}
           <Link

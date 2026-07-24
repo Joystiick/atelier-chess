@@ -1,8 +1,6 @@
-"use client";
-
 import { ChessPiece } from "@/components/board/ChessPiece";
 import { FILES, RANKS } from "@/lib/chess/pieces";
-import type { BoardTheme } from "@/lib/names";
+import { BOARD_THEMES, type BoardTheme } from "@/lib/names";
 import type { Square } from "chess.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,30 +19,22 @@ type ChessBoardProps = {
   inCheckSquare?: Square | null;
   interactive?: boolean;
   theme?: BoardTheme;
+  showArrow?: boolean;
+  vignette?: boolean;
   onSquareClick?: (square: Square) => void;
 };
 
-const THEMES: Record<
-  BoardTheme,
-  { light: string; dark: string; selected: string; target: string; last: string; check: string }
-> = {
-  "salon-emerald": {
-    light: "#dce8df",
-    dark: "#2f5d4a",
+function themeColors(theme: BoardTheme) {
+  const t = BOARD_THEMES[theme];
+  return {
+    light: t.light,
+    dark: t.dark,
     selected: "rgba(201, 162, 39, 0.55)",
     target: "rgba(244, 228, 180, 0.55)",
     last: "rgba(180, 140, 40, 0.35)",
     check: "rgba(190, 50, 40, 0.55)",
-  },
-  "midnight-brass": {
-    light: "#c9b896",
-    dark: "#1a2330",
-    selected: "rgba(212, 168, 75, 0.5)",
-    target: "rgba(212, 168, 75, 0.4)",
-    last: "rgba(100, 140, 180, 0.35)",
-    check: "rgba(200, 70, 50, 0.55)",
-  },
-};
+  };
+}
 
 function squareToGrid(
   square: Square,
@@ -58,6 +48,27 @@ function squareToGrid(
   return { col: 7 - file, row: rank };
 }
 
+function arrowPoints(
+  from: Square,
+  to: Square,
+  orientation: "white" | "black",
+  size: number,
+) {
+  const a = squareToGrid(from, orientation);
+  const b = squareToGrid(to, orientation);
+  const x1 = (a.col + 0.5) * size;
+  const y1 = (a.row + 0.5) * size;
+  const x2 = (b.col + 0.5) * size;
+  const y2 = (b.row + 0.5) * size;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const head = size * 0.22;
+  const hx1 = x2 - head * Math.cos(angle - 0.45);
+  const hy1 = y2 - head * Math.sin(angle - 0.45);
+  const hx2 = x2 - head * Math.cos(angle + 0.45);
+  const hy2 = y2 - head * Math.sin(angle + 0.45);
+  return { x1, y1, x2, y2, hx1, hy1, hx2, hy2 };
+}
+
 export function ChessBoard({
   pieces,
   orientation = "white",
@@ -67,6 +78,8 @@ export function ChessBoard({
   inCheckSquare = null,
   interactive = true,
   theme = "salon-emerald",
+  showArrow = true,
+  vignette = false,
   onSquareClick,
 }: ChessBoardProps) {
   const [dragging, setDragging] = useState<Square | null>(null);
@@ -79,7 +92,7 @@ export function ChessBoard({
   const [boardSize, setBoardSize] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const prevMove = useRef<string | null>(null);
-  const colors = THEMES[theme];
+  const colors = themeColors(theme);
 
   useEffect(() => {
     const el = boardRef.current;
@@ -261,6 +274,46 @@ export function ChessBoard({
             className="h-[86%] w-[86%] object-contain"
           />
         </div>
+      )}
+
+      {showArrow && lastMove && boardSize > 0 && (
+        <svg
+          className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
+          viewBox={`0 0 ${boardSize} ${boardSize}`}
+          aria-hidden
+        >
+          {(() => {
+            const a = arrowPoints(lastMove.from, lastMove.to, orientation, boardSize / 8);
+            return (
+              <g opacity={0.75}>
+                <line
+                  x1={a.x1}
+                  y1={a.y1}
+                  x2={a.x2}
+                  y2={a.y2}
+                  stroke="rgba(201,162,39,0.85)"
+                  strokeWidth={boardSize / 48}
+                  strokeLinecap="round"
+                />
+                <polygon
+                  points={`${a.x2},${a.y2} ${a.hx1},${a.hy1} ${a.hx2},${a.hy2}`}
+                  fill="rgba(201,162,39,0.9)"
+                />
+              </g>
+            );
+          })()}
+        </svg>
+      )}
+
+      {vignette && (
+        <div
+          className="pointer-events-none absolute inset-0 z-[3]"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.45) 100%)",
+          }}
+          aria-hidden
+        />
       )}
     </div>
   );

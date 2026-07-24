@@ -34,6 +34,14 @@ export const games = pgTable(
     result: text("result"),
     whiteClockMs: integer("white_clock_ms").notNull().default(600_000),
     blackClockMs: integer("black_clock_ms").notNull().default(600_000),
+    /** Base minutes * 60_000 */
+    timeControlMs: integer("time_control_ms").notNull().default(600_000),
+    /** Increment per move in ms */
+    incrementMs: integer("increment_ms").notNull().default(0),
+    /** Pending draw offer from 'w' | 'b' */
+    drawOfferBy: text("draw_offer_by"),
+    /** Pending takeback offer from 'w' | 'b' */
+    takebackOfferBy: text("takeback_offer_by"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -58,5 +66,18 @@ export const moves = pgTable("moves", {
     .defaultNow(),
 });
 
+export const puzzles = pgTable("puzzles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  fen: text("fen").notNull(),
+  /** Comma-separated UCI solution moves */
+  solution: text("solution").notNull(),
+  title: text("title").notNull().default("Mate puzzle"),
+  rating: integer("rating").notNull().default(1200),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type Game = typeof games.$inferSelect;
 export type MoveRow = typeof moves.$inferSelect;
+export type Puzzle = typeof puzzles.$inferSelect;

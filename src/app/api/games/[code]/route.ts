@@ -46,7 +46,12 @@ export async function GET(_request: Request, { params }: Params) {
     result: game.result,
     whiteClockMs: game.whiteClockMs,
     blackClockMs: game.blackClockMs,
+    timeControlMs: game.timeControlMs,
+    incrementMs: game.incrementMs,
+    drawOfferBy: game.drawOfferBy,
+    takebackOfferBy: game.takebackOfferBy,
     you,
+    spectator: you === null,
     moves: moveRows.map((m) => ({
       ply: m.ply,
       uci: m.uci,
