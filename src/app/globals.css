@@ -1,0 +1,371 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #050805;
+  --ink-soft: #0c1610;
+  --panel: rgba(8, 18, 12, 0.78);
+  --cream: #e8efe6;
+  --mist: #9bb0a4;
+  --brass: #c9a227;
+  --brass-dim: rgba(201, 162, 39, 0.35);
+  --emerald: #1f4d3a;
+  --star-c: rgb(12, 104, 35);
+}
+
+@theme inline {
+  --color-background: var(--ink);
+  --color-foreground: var(--cream);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--cream);
+  background: #000;
+  min-height: 100vh;
+}
+
+/* Fixed animated particle field (user-provided pattern) */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: #000;
+}
+
+.starfield-layer {
+  position: absolute;
+  inset: 0;
+  --c: var(--star-c);
+  background-color: #000;
+  background-image:
+    radial-gradient(4px 100px at 0px 235px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 235px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 117.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 252px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 252px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 126px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 150px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 150px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 75px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 253px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 253px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 126.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 204px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 204px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 102px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 134px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 134px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 67px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 179px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 179px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 89.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 299px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 299px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 149.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 215px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 215px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 107.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 281px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 281px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 140.5px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 158px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 158px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 79px, var(--c) 100%, #0000 150%),
+    radial-gradient(4px 100px at 0px 210px, var(--c), #0000),
+    radial-gradient(4px 100px at 300px 210px, var(--c), #0000),
+    radial-gradient(1.5px 1.5px at 150px 105px, var(--c) 100%, #0000 150%);
+  background-size:
+    300px 235px, 300px 235px, 300px 235px,
+    300px 252px, 300px 252px, 300px 252px,
+    300px 150px, 300px 150px, 300px 150px,
+    300px 253px, 300px 253px, 300px 253px,
+    300px 204px, 300px 204px, 300px 204px,
+    300px 134px, 300px 134px, 300px 134px,
+    300px 179px, 300px 179px, 300px 179px,
+    300px 299px, 300px 299px, 300px 299px,
+    300px 215px, 300px 215px, 300px 215px,
+    300px 281px, 300px 281px, 300px 281px,
+    300px 158px, 300px 158px, 300px 158px,
+    300px 210px, 300px 210px, 300px 210px;
+  animation: starfield-drift 150s linear infinite;
+}
+
+.starfield-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  backdrop-filter: blur(1em) brightness(6);
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    #0000 0,
+    #0000 2px,
+    hsl(0 0% 4%) 2px
+  );
+  background-size: 8px 8px;
+}
+
+@keyframes starfield-drift {
+  0% {
+    background-position:
+      0px 220px, 3px 220px, 151.5px 337.5px,
+      25px 24px, 28px 24px, 176.5px 150px,
+      50px 16px, 53px 16px, 201.5px 91px,
+      75px 224px, 78px 224px, 226.5px 350.5px,
+      100px 19px, 103px 19px, 251.5px 121px,
+      125px 120px, 128px 120px, 276.5px 187px,
+      150px 31px, 153px 31px, 301.5px 120.5px,
+      175px 235px, 178px 235px, 326.5px 384.5px,
+      200px 121px, 203px 121px, 351.5px 228.5px,
+      225px 224px, 228px 224px, 376.5px 364.5px,
+      250px 26px, 253px 26px, 401.5px 105px,
+      275px 75px, 278px 75px, 426.5px 180px;
+  }
+  to {
+    background-position:
+      0px 6800px, 3px 6800px, 151.5px 6917.5px,
+      25px 13632px, 28px 13632px, 176.5px 13758px,
+      50px 5416px, 53px 5416px, 201.5px 5491px,
+      75px 17175px, 78px 17175px, 226.5px 17301.5px,
+      100px 5119px, 103px 5119px, 251.5px 5221px,
+      125px 8428px, 128px 8428px, 276.5px 8495px,
+      150px 9876px, 153px 9876px, 301.5px 9965.5px,
+      175px 13391px, 178px 13391px, 326.5px 13540.5px,
+      200px 14741px, 203px 14741px, 351.5px 14848.5px,
+      225px 18770px, 228px 18770px, 376.5px 18910.5px,
+      250px 5082px, 253px 5082px, 401.5px 5161px,
+      275px 6375px, 278px 6375px, 426.5px 6480px;
+  }
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.hero {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.25rem 3rem;
+  overflow: hidden;
+}
+
+.hero-stage {
+  position: relative;
+  width: min(100%, 720px);
+  text-align: center;
+}
+
+.brand {
+  font-family: var(--font-display), serif;
+  font-size: clamp(3.5rem, 12vw, 6.5rem);
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: var(--cream);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.65);
+  margin: 0;
+}
+
+.brand-sub {
+  margin: 1rem auto 0;
+  max-width: 28rem;
+  color: var(--mist);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.play-btn-face {
+  background: linear-gradient(180deg, #e6d08a 0%, #c9a227 48%, #9a7a18 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 10px 0 #6d5610,
+    0 16px 28px rgba(0, 0, 0, 0.35);
+}
+
+.play-btn-edge {
+  background: #5a470c;
+}
+
+.play-btn:active .play-btn-face {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 3px 0 #6d5610,
+    0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+.play-btn:active .play-btn-edge {
+  transform: translateY(2px);
+  height: 4px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--brass-dim);
+  border-radius: 0.85rem;
+  padding: 1rem 1.1rem;
+  backdrop-filter: blur(12px);
+}
+
+.panel-title {
+  font-family: var(--font-display), serif;
+  font-size: 1.05rem;
+  color: var(--brass);
+  margin: 0 0 0.65rem;
+}
+
+.chip {
+  border: 1px solid var(--brass-dim);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cream);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--brass);
+}
+
+.mode-card {
+  text-align: left;
+  width: 100%;
+  border: 1px solid var(--brass-dim);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 1rem;
+  padding: 1.1rem 1.2rem;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  backdrop-filter: blur(8px);
+}
+
+.mode-card:hover {
+  border-color: var(--brass);
+  transform: translateY(-2px);
+}
+
+.mode-card h3 {
+  margin: 0;
+  font-family: var(--font-display), serif;
+  font-size: 1.35rem;
+  color: var(--cream);
+}
+
+.mode-card p {
+  margin: 0.4rem 0 0;
+  color: var(--mist);
+  font-size: 0.95rem;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--brass-dim);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--cream);
+  border-radius: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 1rem;
+}
+
+.field:focus {
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
+}
+
+.btn-primary {
+  border: 0;
+  background: linear-gradient(180deg, #e6d08a, #c9a227);
+  color: var(--ink);
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.2rem;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  border: 1px solid var(--brass-dim);
+  background: transparent;
+  color: var(--cream);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.2rem;
+  cursor: pointer;
+}
+
+.overlay-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.overlay-card {
+  width: min(100%, 26rem);
+  border-radius: 1.1rem;
+  border: 1px solid var(--brass-dim);
+  background: rgba(8, 16, 12, 0.92);
+  padding: 1.75rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display), serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid transparent;
+}
+
+.clock.active {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+
+.clock.low {
+  color: #ff8a7a;
+  border-color: rgba(255, 100, 80, 0.45);
+}
+
+.piece-flying {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  transition: transform 180ms ease-out;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starfield-layer {
+    animation: none !important;
+  }
+  .piece-flying {
+    transition: none !important;
+  }
+  .play-btn {
+    transition: none !important;
+  }
+}
