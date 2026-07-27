@@ -1,4 +1,5 @@
 import {
+  boolean,
   integer,
   pgEnum,
   pgTable,
@@ -40,6 +41,14 @@ export const games = pgTable(
     takebackOfferBy: text("takeback_offer_by"),
     whiteUserId: uuid("white_user_id"),
     blackUserId: uuid("black_user_id"),
+    rated: boolean("rated").notNull().default(true),
+    correspondence: boolean("correspondence").notNull().default(false),
+    passwordHash: text("password_hash"),
+    maxSpectators: integer("max_spectators").notNull().default(50),
+    revealNames: boolean("reveal_names").notNull().default(true),
+    clubId: uuid("club_id"),
+    arenaId: uuid("arena_id"),
+    banterLog: text("banter_log").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -75,6 +84,13 @@ export const puzzles = pgTable("puzzles", {
     .defaultNow(),
 });
 
+export const presenceStatusEnum = pgEnum("presence_status", [
+  "offline",
+  "online",
+  "lfg",
+  "ingame",
+]);
+
 export const users = pgTable(
   "users",
   {
@@ -84,7 +100,14 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     avatarId: text("avatar_id").notNull().default("knight-brass"),
     elo: integer("elo").notNull().default(1200),
+    seasonElo: integer("season_elo").notNull().default(1200),
+    seasonKey: text("season_key").notNull().default(""),
     gamesPlayed: integer("games_played").notNull().default(0),
+    presence: presenceStatusEnum("presence").notNull().default("offline"),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    activeGameCode: text("active_game_code"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -160,6 +183,151 @@ export const gameInvites = pgTable("game_invites", {
     .notNull()
     .defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const gameArchives = pgTable("game_archives", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  pgn: text("pgn").notNull(),
+  result: text("result"),
+  opponent: text("opponent"),
+  rated: boolean("rated").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  href: text("href"),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const matchQueue = pgTable("match_queue", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  timeControl: text("time_control").notNull().default("10|0"),
+  elo: integer("elo").notNull().default(1200),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const arenaStatusEnum = pgEnum("arena_status", [
+  "open",
+  "running",
+  "finished",
+]);
+
+export const arenas = pgTable("arenas", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  status: arenaStatusEnum("status").notNull().default("open"),
+  timeControl: text("time_control").notNull().default("3|2"),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const arenaPlayers = pgTable(
+  "arena_players",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    arenaId: uuid("arena_id")
+      .notNull()
+      .references(() => arenas.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    score: integer("score").notNull().default(0),
+    gamesPlayed: integer("games_played").notNull().default(0),
+    waiting: boolean("waiting").notNull().default(true),
+  },
+  (table) => [uniqueIndex("arena_player_idx").on(table.arenaId, table.userId)],
+);
+
+export const clubs = pgTable(
+  "clubs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description").notNull().default(""),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    openTableCode: text("open_table_code"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("clubs_slug_idx").on(table.slug)],
+);
+
+export const clubMembers = pgTable(
+  "club_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clubId: uuid("club_id")
+      .notNull()
+      .references(() => clubs.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("club_member_idx").on(table.clubId, table.userId)],
+);
+
+export const studies = pgTable("studies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  ownerId: uuid("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  fen: text("fen")
+    .notNull()
+    .default("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
+  pgn: text("pgn").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  sharedWith: text("shared_with").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const puzzleSets = pgTable("puzzle_sets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  ownerId: uuid("owner_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  puzzleIds: text("puzzle_ids").notNull().default(""),
+  sharedWith: text("shared_with").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export type Game = typeof games.$inferSelect;

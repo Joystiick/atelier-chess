@@ -21,6 +21,8 @@ type ChessBoardProps = {
   theme?: BoardTheme;
   showArrow?: boolean;
   vignette?: boolean;
+  /** Ghost board for blindfold — keep highlights, hide pieces */
+  hidePieces?: boolean;
   onSquareClick?: (square: Square) => void;
 };
 
@@ -80,6 +82,7 @@ export function ChessBoard({
   theme = "salon-emerald",
   showArrow = true,
   vignette = false,
+  hidePieces = false,
   onSquareClick,
 }: ChessBoardProps) {
   const [dragging, setDragging] = useState<Square | null>(null);
@@ -174,7 +177,7 @@ export function ChessBoard({
               (lastMove!.from === square || lastMove!.to === square);
             const isCheck = inCheckSquare === square;
             const labelCoord = isDark ? "text-white/50" : "text-black/45";
-            const showPiece = piece && square !== hideSquare;
+            const showPiece = !hidePieces && piece && square !== hideSquare;
 
             return (
               <button
@@ -258,7 +261,7 @@ export function ChessBoard({
         )}
       </div>
 
-      {fly && (
+      {fly && !hidePieces && (
         <div
           className="piece-flying flex items-center justify-center"
           style={{

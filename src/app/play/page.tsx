@@ -13,7 +13,7 @@ import {
 } from "@/lib/names";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 type Step = "modes" | "human" | "ai" | "invite";
 
@@ -31,6 +31,11 @@ function PlayPageInner() {
   const [timeControl, setTimeControl] = useState<TimeControlId>("10|0");
   const [recent, setRecent] = useState<{ code: string; opponent: string }[]>([]);
   const [inviteFriendId, setInviteFriendId] = useState<string | null>(null);
+  const [rated, setRated] = useState(true);
+  const [correspondence, setCorrespondence] = useState(false);
+  const [salonPassword, setSalonPassword] = useState("");
+  const [revealNames, setRevealNames] = useState(true);
+  const autoJoinTried = useRef(false);
 
   useEffect(() => {
     setTimeControl(getPreferredTimeControl());
@@ -43,6 +48,33 @@ function PlayPageInner() {
     }
   }, [authLoading, user, router, joinParam]);
 
+  // Seamless: /play?join=CODE after login → sit immediately
+  useEffect(() => {
+    if (authLoading || !user || joinParam.length !== 8 || autoJoinTried.current) return;
+    autoJoinTried.current = true;
+    void (async () => {
+      setBusy(true);
+      setError("");
+      try {
+        const res = await fetch("/api/games/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: joinParam }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed");
+        playSound("start");
+        router.replace(`/game/${data.code}`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not join");
+        setStep("human");
+        setCode(joinParam);
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [authLoading, user, joinParam, router]);
+
   const createGame = async (friendId?: string | null) => {
     setBusy(true);
     setError("");
@@ -54,6 +86,10 @@ function PlayPageInner() {
         body: JSON.stringify({
           timeControl,
           inviteFriendId: friendId || undefined,
+          rated,
+          correspondence,
+          password: salonPassword.trim() || undefined,
+          revealNames,
         }),
       });
       const data = await res.json();
@@ -102,10 +138,10 @@ function PlayPageInner() {
     router.push(`/game/${data.code}`);
   };
 
-  if (authLoading || !user) {
+  if (authLoading || !user || (joinParam.length === 8 && busy && !error)) {
     return (
       <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-        Checking account…
+        {joinParam.length === 8 ? "Joining table…" : "Checking account…"}
       </main>
     );
   }
@@ -178,6 +214,39 @@ function PlayPageInner() {
             className="mode-card"
             onClick={() => {
               playSound("click");
+              router.push("/ranked");
+            }}
+          >
+            <h3>Ranked</h3>
+            <p>Queue for a rated match.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/arena");
+            }}
+          >
+            <h3>Arena</h3>
+            <p>Timed arena events.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/clubs");
+            }}
+          >
+            <h3>Clubs</h3>
+            <p>Salons and club tables.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
               router.push("/friends");
             }}
           >
@@ -192,12 +261,64 @@ function PlayPageInner() {
             className="mode-card"
             onClick={() => {
               playSound("click");
+              router.push("/train");
+            }}
+          >
+            <h3>Train</h3>
+            <p>Openings, coach, blunders, puzzle sets.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/history");
+            }}
+          >
+            <h3>History</h3>
+            <p>Archived games and analysis.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/correspondence");
+            }}
+          >
+            <h3>Correspondence</h3>
+            <p>Slow games and your move inbox.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
+              router.push("/study");
+            }}
+          >
+            <h3>Study</h3>
+            <p>Shared boards and annotations.</p>
+          </button>
+          <button
+            type="button"
+            className="mode-card"
+            onClick={() => {
+              playSound("click");
               router.push("/puzzle");
             }}
           >
             <h3>Puzzles</h3>
             <p>Daily puzzle or rush.</p>
           </button>
+          <Link
+            href="/settings"
+            className="mode-card block"
+            onClick={() => playSound("click")}
+          >
+            <h3>Settings</h3>
+            <p>Sound, coach, blindfold, mood packs.</p>
+          </Link>
           {recent.length > 0 && (
             <div className="panel mt-2">
               <h2 className="panel-title">Recent tables</h2>
@@ -241,6 +362,41 @@ function PlayPageInner() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
+            <input
+              type="checkbox"
+              checked={rated}
+              onChange={(e) => setRated(e.target.checked)}
+            />
+            Rated
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
+            <input
+              type="checkbox"
+              checked={correspondence}
+              onChange={(e) => setCorrespondence(e.target.checked)}
+            />
+            Correspondence
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
+            <input
+              type="checkbox"
+              checked={revealNames}
+              onChange={(e) => setRevealNames(e.target.checked)}
+            />
+            Reveal names
+          </label>
+          <label className="block text-sm text-[var(--mist)]">
+            Salon password (optional)
+            <input
+              className="field mt-1"
+              type="password"
+              autoComplete="off"
+              placeholder="Leave blank for open table"
+              value={salonPassword}
+              onChange={(e) => setSalonPassword(e.target.value)}
+            />
           </label>
           <button
             type="button"

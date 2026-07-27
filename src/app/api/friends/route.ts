@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth/requireUser";
 import { db } from "@/lib/db";
 import { friendships, users } from "@/lib/db/schema";
 import { avatarEmoji } from "@/lib/auth/avatars";
-import { and, eq, or } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 function friendCard(u: {
@@ -10,6 +10,9 @@ function friendCard(u: {
   username: string;
   avatarId: string;
   elo: number;
+  presence: string;
+  lastSeenAt: Date;
+  activeGameCode: string | null;
 }) {
   return {
     id: u.id,
@@ -17,6 +20,10 @@ function friendCard(u: {
     avatarId: u.avatarId,
     avatar: avatarEmoji(u.avatarId),
     elo: u.elo,
+    presence: u.presence,
+    lastSeenAt: u.lastSeenAt.toISOString(),
+    activeGameCode: u.activeGameCode,
+    spectateHref: u.activeGameCode ? `/game/${u.activeGameCode}` : null,
   };
 }
 

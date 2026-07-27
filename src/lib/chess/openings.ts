@@ -1,5 +1,5 @@
 /** Tiny opening book: SAN sequence → name */
-const OPENINGS: { moves: string[]; name: string }[] = [
+export const OPENINGS: { moves: string[]; name: string }[] = [
   { moves: ["e4", "e5", "Nf3", "Nc6", "Bc4"], name: "Italian Game" },
   { moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"], name: "Ruy Lopez" },
   { moves: ["e4", "e5", "Nf3", "Nc6", "d4"], name: "Scotch Game" },

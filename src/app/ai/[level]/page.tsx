@@ -9,12 +9,14 @@ import {
   getPreferredTimeControl,
   type TimeControlId,
 } from "@/lib/names";
+import { setCoachMode } from "@/lib/prefs";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
-export default function AiPage() {
+function AiPageInner() {
   const params = useParams<{ level: string }>();
+  const search = useSearchParams();
   const router = useRouter();
   const { user, loading } = useAuth();
   const level = (params.level as AiLevel) ?? "medium";
@@ -23,8 +25,17 @@ export default function AiPage() {
     if (typeof window === "undefined") return "∞";
     return getPreferredTimeControl();
   });
+  const [coachReady, setCoachReady] = useState(false);
 
   const clockMs = useMemo(() => TIME_CONTROLS[tcId]?.baseMs ?? 0, [tcId]);
+  const coachParam = search.get("coach") === "1";
+
+  useEffect(() => {
+    if (coachParam) {
+      setCoachMode(true);
+    }
+    setCoachReady(true);
+  }, [coachParam]);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login?next=/ai/" + level);
@@ -39,7 +50,7 @@ export default function AiPage() {
     );
   }
 
-  if (loading || !user) {
+  if (loading || !user || !coachReady) {
     return (
       <main className="grid min-h-screen place-items-center text-[var(--mist)]">
         Checking account…
@@ -74,8 +85,22 @@ export default function AiPage() {
         level={level}
         playerName={user.username}
         clockMs={clockMs}
-        key={`${level}-${tcId}`}
+        key={`${level}-${tcId}-${coachParam ? "coach" : "solo"}`}
       />
     </main>
+  );
+}
+
+export default function AiPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+          Loading…
+        </main>
+      }
+    >
+      <AiPageInner />
+    </Suspense>
   );
 }

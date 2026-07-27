@@ -10,6 +10,10 @@ export type FriendUser = {
   avatarId: string;
   avatar: string;
   elo: number;
+  presence?: string;
+  lastSeenAt?: string;
+  activeGameCode?: string | null;
+  spectateHref?: string | null;
 };
 
 export type GameInviteRow = {

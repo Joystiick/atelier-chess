@@ -1,7 +1,9 @@
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Fraunces, Outfit } from "next/font/google";
 import type { Metadata, Viewport } from "next";
+import { InstallPrompt } from "@/components/ui/InstallPrompt";
 import { PatchNotes } from "@/components/ui/PatchNotes";
+import { PresenceHeartbeat } from "@/components/ui/PresenceHeartbeat";
 import { RegisterSW } from "@/components/ui/RegisterSW";
 import { StarfieldBackground } from "@/components/ui/StarfieldBackground";
 import "./globals.css";
@@ -49,6 +51,8 @@ export default function RootLayout({
         <StarfieldBackground />
         <RegisterSW />
         <AuthProvider>
+          <PresenceHeartbeat />
+          <InstallPrompt />
           <div className="app-shell">{children}</div>
           <PatchNotes />
         </AuthProvider>

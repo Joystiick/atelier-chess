@@ -14,6 +14,9 @@ export default function HomePage() {
           Play a friend with a code, or face the AI.
         </p>
         <PlayButton />
+        <p className="mt-3 max-w-sm text-center text-xs text-[var(--mist)]">
+          {`One tap to play. Tables share a QR — scan, sign in if needed, sit.`}
+        </p>
         <p className="mt-6 text-sm">
           <Link href="/how-to" className="text-[var(--brass)] hover:underline">
             How to play

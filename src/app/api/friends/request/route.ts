@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/requireUser";
 import { db } from "@/lib/db";
 import { friendships, users } from "@/lib/db/schema";
+import { notifyUser } from "@/lib/notify";
 import { getPusher, userChannel } from "@/lib/pusher/server";
 import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { and, eq, or } from "drizzle-orm";
@@ -63,6 +64,13 @@ export async function POST(request: Request) {
           .update(friendships)
           .set({ status: "accepted", updatedAt: new Date() })
           .where(eq(friendships.id, existing.id));
+        await notifyUser({
+          userId: target.id,
+          kind: "friend",
+          title: "Friend request accepted",
+          body: `${me.username} accepted your friend request`,
+          href: "/friends",
+        });
         try {
           await getPusher().trigger(userChannel(target.id), "friend.accepted", {
             userId: me.id,

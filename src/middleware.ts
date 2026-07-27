@@ -1,7 +1,24 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/play", "/ai", "/game", "/friends", "/profile", "/analyze"];
+  const PROTECTED_PREFIXES = [
+  "/play",
+  "/ai",
+  "/game",
+  "/join",
+  "/friends",
+  "/profile",
+  "/analyze",
+  "/ranked",
+  "/arena",
+  "/clubs",
+  "/history",
+  "/study",
+  "/train",
+  "/correspondence",
+  "/settings",
+  "/puzzles",
+];
 
 function secretKey() {
   const raw =
@@ -38,11 +55,35 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/play",
     "/play/:path*",
     "/ai/:path*",
     "/game/:path*",
+    "/join",
+    "/join/:path*",
+    "/friends",
     "/friends/:path*",
+    "/profile",
     "/profile/:path*",
+    "/analyze",
     "/analyze/:path*",
+    "/ranked",
+    "/ranked/:path*",
+    "/arena",
+    "/arena/:path*",
+    "/clubs",
+    "/clubs/:path*",
+    "/history",
+    "/history/:path*",
+    "/study",
+    "/study/:path*",
+    "/train",
+    "/train/:path*",
+    "/correspondence",
+    "/correspondence/:path*",
+    "/settings",
+    "/settings/:path*",
+    "/puzzles",
+    "/puzzles/:path*",
   ],
 };

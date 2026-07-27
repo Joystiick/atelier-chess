@@ -3,6 +3,7 @@
 import { ChessBoard, type BoardPiece } from "@/components/board/ChessBoard";
 import { ChessPiece } from "@/components/board/ChessPiece";
 import { GameOverOverlay } from "@/components/game/GameOverOverlay";
+import { VoiceRoom } from "@/components/game/VoiceRoom";
 import { WaitingRoom } from "@/components/game/WaitingRoom";
 import { useAmbient } from "@/lib/chess/ambient";
 import { AI_ELO, rivalLine } from "@/lib/chess/banter";
@@ -10,6 +11,7 @@ import { formatClockOrUnlimited, useClocks } from "@/lib/chess/clocks";
 import {
   AI_RIVALS,
   askAiMove,
+  askEngineMove,
   uciToMove,
   type AiLevel,
 } from "@/lib/chess/engine";
@@ -31,6 +33,26 @@ import {
   type AmbientMode,
   type BoardTheme,
 } from "@/lib/names";
+import {
+  getBlindfold,
+  getCoachMode,
+  getConfirmMove,
+  getLampAuto,
+  getMood,
+  getPieceSet,
+  getPremoveEnabled,
+  lampForHour,
+  MOOD_PACKS,
+  PIECE_SETS,
+  setBlindfold,
+  setCoachMode,
+  setConfirmMove,
+  setMood,
+  setPieceSet,
+  setPremoveEnabled,
+  type MoodId,
+  type PieceSetId,
+} from "@/lib/prefs";
 import { Chess, type Square } from "chess.js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,6 +69,21 @@ const AI_CLOCK_MS = 600_000;
 const REPLAY_KEY = "atelier.replayPgn";
 const FILES = "abcdefgh";
 
+const REMATCH_LINES = [
+  "Same table — shall we?",
+  "One more, with feeling.",
+  "The salon still has light.",
+  "Rematch? The pieces remember.",
+  "Again — fortune favors the curious.",
+];
+
+const MOOD_ORDER = Object.keys(MOOD_PACKS) as MoodId[];
+const PIECE_ORDER = Object.keys(PIECE_SETS) as PieceSetId[];
+
+type PendingConfirm = { from: Square; to: Square };
+type Premove = { from: Square; to: Square; promotion?: "q" | "r" | "b" | "n" };
+type CoachCandidate = { san: string; from: Square; to: Square; promotion?: string };
+
 type GameShellProps =
   | {
       mode: "ai";
@@ -55,6 +92,8 @@ type GameShellProps =
       playerName: string;
       /** 0 = unlimited */
       clockMs?: number;
+      correspondence?: boolean;
+      rated?: boolean;
     }
   | {
       mode: "human";
@@ -69,6 +108,8 @@ type GameShellProps =
       takebackOfferBy?: string | null;
       /** 0 = unlimited */
       timeControlMs?: number;
+      correspondence?: boolean;
+      rated?: boolean;
       onLocalMove?: (uci: string, san: string, fen: string) => Promise<{
         whiteClockMs?: number;
         blackClockMs?: number;
@@ -123,6 +164,35 @@ function shiftSquare(sq: Square, df: number, dr: number): Square | null {
   return `${FILES[nf]}${nr}` as Square;
 }
 
+function pickWeightedCandidates(chess: Chess, limit: number): CoachCandidate[] {
+  const moves = chess.moves({ verbose: true });
+  if (moves.length === 0) return [];
+
+  const scored = moves.map((m) => {
+    let score = Math.random();
+    if (m.san.includes("+") || m.san.includes("#")) score += 3;
+    if (m.captured) score += 2;
+    if (m.flags.includes("k") || m.flags.includes("q")) score += 0.5;
+    return { m, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+
+  const out: CoachCandidate[] = [];
+  const seen = new Set<string>();
+  for (const { m } of scored) {
+    if (out.length >= limit) break;
+    if (seen.has(m.san)) continue;
+    seen.add(m.san);
+    out.push({
+      san: m.san,
+      from: m.from as Square,
+      to: m.to as Square,
+      promotion: m.promotion,
+    });
+  }
+  return out;
+}
+
 export function GameShell(props: GameShellProps) {
   const router = useRouter();
   const initialFen =
@@ -148,19 +218,56 @@ export function GameShell(props: GameShellProps) {
   const [flipped, setFlipped] = useState(false);
   const [showOver, setShowOver] = useState(false);
   const [overTitle, setOverTitle] = useState("");
+  const [confirmOn, setConfirmOn] = useState(false);
+  const [premoveOn, setPremoveOn] = useState(false);
+  const [coachOn, setCoachOn] = useState(false);
+  const [blindfoldOn, setBlindfoldOn] = useState(false);
+  const [pieceSet, setPieceSetState] = useState<PieceSetId>("classic");
+  const [moodId, setMoodId] = useState<MoodId | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
+    null,
+  );
+  const [premove, setPremove] = useState<Premove | null>(null);
+  const [coachMoves, setCoachMoves] = useState<CoachCandidate[]>([]);
+  const [sanInput, setSanInput] = useState("");
   const engineAbort = useRef<AbortController | null>(null);
+  const coachAbort = useRef<AbortController | null>(null);
   const started = useRef(false);
   const scored = useRef(false);
   const fenRef = useRef(fen);
+  const premoveRef = useRef<Premove | null>(null);
 
   useEffect(() => {
     fenRef.current = fen;
   }, [fen]);
 
   useEffect(() => {
+    premoveRef.current = premove;
+  }, [premove]);
+
+  useEffect(() => {
     setTheme(getBoardTheme());
     setSoundOn(getSoundEnabled());
     setAmbientMode(getAmbient());
+    setConfirmOn(getConfirmMove());
+    setPremoveOn(getPremoveEnabled());
+    setCoachOn(getCoachMode());
+    setBlindfoldOn(getBlindfold());
+    setPieceSetState(getPieceSet());
+    const mood = getMood();
+    setMoodId(mood);
+    if (mood) {
+      const pack = MOOD_PACKS[mood];
+      if (pack.theme in BOARD_THEMES) {
+        setTheme(pack.theme as BoardTheme);
+        setBoardTheme(pack.theme as BoardTheme);
+      }
+      setAmbientMode(pack.ambient);
+      setAmbient(pack.ambient);
+    }
+    if (getLampAuto()) {
+      setVignette(lampForHour().vignette);
+    }
   }, []);
 
   useAmbient(ambient);
@@ -174,6 +281,8 @@ export function GameShell(props: GameShellProps) {
   const aiLevel = props.mode === "ai" ? props.level : null;
   const drawOfferBy = props.mode === "human" ? props.drawOfferBy : null;
   const takebackOfferBy = props.mode === "human" ? props.takebackOfferBy : null;
+  const rated = props.rated ?? (props.mode === "human");
+  const correspondence = Boolean(props.correspondence);
 
   const [baseWhiteMs, setBaseWhiteMs] = useState(() => {
     if (props.mode === "human") {
@@ -193,7 +302,8 @@ export function GameShell(props: GameShellProps) {
   const unlimited =
     (props.mode === "human" && (props.timeControlMs ?? 1) === 0) ||
     (props.mode === "ai" && (props.clockMs ?? AI_CLOCK_MS) === 0) ||
-    baseWhiteMs === 0;
+    baseWhiteMs === 0 ||
+    correspondence;
 
   useEffect(() => {
     if (started.current) return;
@@ -207,6 +317,7 @@ export function GameShell(props: GameShellProps) {
       setFen(remoteFen);
       setSelected(null);
       setPromo(null);
+      setPendingConfirm(null);
       try {
         const c = new Chess(remoteFen);
         const h = c.history({ verbose: true });
@@ -251,6 +362,35 @@ export function GameShell(props: GameShellProps) {
         const line = rivalLine(aiLevel, "end");
         if (line) setBanter(line);
       }
+      const rematch =
+        REMATCH_LINES[Math.floor(Math.random() * REMATCH_LINES.length)]!;
+      setBanter((prev) => (prev ? `${prev} · ${rematch}` : rematch));
+
+      const archiveCode = props.mode === "human" ? props.code : "ai";
+      const opponentLabel =
+        props.mode === "ai"
+          ? AI_RIVALS[props.level].name
+          : (props.opponentName ?? "Opponent");
+      let archivePgn = "";
+      try {
+        archivePgn = new Chess(fenRef.current).pgn();
+      } catch {
+        archivePgn = fenRef.current;
+      }
+      void fetch("/api/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: archiveCode,
+          pgn: archivePgn,
+          result,
+          opponent: opponentLabel,
+          rated: props.rated ?? props.mode === "human",
+        }),
+      }).catch(() => {
+        // guests / offline ignore archive
+      });
+
       void fetch("/api/auth/elo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -488,77 +628,213 @@ export function GameShell(props: GameShellProps) {
     humanStatus !== "waiting" &&
     turn === playerColor;
 
-  const tryMove = async (
-    from: Square,
-    to: Square,
-    promotion?: "q" | "r" | "b" | "n",
-  ) => {
-    if (!canPlay) return;
+  const canPremove =
+    premoveOn &&
+    !spectator &&
+    !thinking &&
+    !gameOver &&
+    humanStatus !== "waiting" &&
+    turn !== playerColor;
 
-    const live = new Chess(fen);
-    const legal = live.moves({ square: from, verbose: true });
-    const match = legal.find(
-      (m) => m.to === to && (!promotion || m.promotion === promotion),
-    );
-    if (!match) {
-      setSelected(null);
-      return;
-    }
-    if (match.promotion && !promotion) {
-      setPromo({ from, to });
-      return;
-    }
+  const tryMove = useCallback(
+    async (
+      from: Square,
+      to: Square,
+      promotion?: "q" | "r" | "b" | "n",
+    ) => {
+      if (spectator || gameOver || humanStatus === "waiting" || thinking) return;
 
-    let move;
-    try {
-      move = live.move({ from, to, promotion: promotion ?? match.promotion });
-    } catch {
-      setSelected(null);
-      return;
-    }
-    if (!move) {
-      setSelected(null);
-      return;
-    }
+      const prevFen = fenRef.current;
+      const live = new Chess(prevFen);
+      if (live.turn() !== playerColor || live.isGameOver()) return;
 
-    setSelected(null);
-    setPromo(null);
-    setLastMove({ from, to });
-    setFen(live.fen());
-    afterMoveFx(live, move);
-    const ended = applyEndStatus(live);
-
-    if (props.mode === "human" && props.onLocalMove) {
-      const uci = `${from}${to}${promotion ?? match.promotion ?? ""}`;
-      try {
-        const clocks = await props.onLocalMove(uci, move.san, live.fen());
-        if (clocks?.whiteClockMs != null) setBaseWhiteMs(clocks.whiteClockMs);
-        if (clocks?.blackClockMs != null) setBaseBlackMs(clocks.blackClockMs);
-      } catch {
-        setFen(fen);
-        setStatusText("Move rejected — try again.");
+      const legal = live.moves({ square: from, verbose: true });
+      const match = legal.find(
+        (m) => m.to === to && (!promotion || m.promotion === promotion),
+      );
+      if (!match) {
+        setSelected(null);
+        setPendingConfirm(null);
         return;
       }
-    }
+      if (match.promotion && !promotion) {
+        setPromo({ from, to });
+        return;
+      }
 
-    void ended;
-  };
+      let move;
+      try {
+        move = live.move({ from, to, promotion: promotion ?? match.promotion });
+      } catch {
+        setSelected(null);
+        setPendingConfirm(null);
+        return;
+      }
+      if (!move) {
+        setSelected(null);
+        setPendingConfirm(null);
+        return;
+      }
+
+      setSelected(null);
+      setPromo(null);
+      setPendingConfirm(null);
+      setPremove(null);
+      setLastMove({ from, to });
+      setFen(live.fen());
+      afterMoveFx(live, move);
+      const ended = applyEndStatus(live);
+
+      if (props.mode === "human" && props.onLocalMove) {
+        const uci = `${from}${to}${promotion ?? match.promotion ?? ""}`;
+        try {
+          const clocks = await props.onLocalMove(uci, move.san, live.fen());
+          if (clocks?.whiteClockMs != null) setBaseWhiteMs(clocks.whiteClockMs);
+          if (clocks?.blackClockMs != null) setBaseBlackMs(clocks.blackClockMs);
+        } catch {
+          setFen(prevFen);
+          setStatusText("Move rejected — try again.");
+          return;
+        }
+      }
+
+      void ended;
+    },
+    [
+      spectator,
+      gameOver,
+      humanStatus,
+      thinking,
+      playerColor,
+      afterMoveFx,
+      applyEndStatus,
+      props,
+    ],
+  );
+
+  // Auto-play premove when it becomes our turn
+  useEffect(() => {
+    if (!canPlay || !premoveOn) return;
+    const pm = premoveRef.current;
+    if (!pm) return;
+    const live = new Chess(fen);
+    const legal = live.moves({ square: pm.from, verbose: true });
+    const ok = legal.some(
+      (m) =>
+        m.to === pm.to &&
+        (!pm.promotion || m.promotion === pm.promotion),
+    );
+    if (!ok) {
+      setPremove(null);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void tryMove(pm.from, pm.to, pm.promotion);
+    }, 30);
+    return () => window.clearTimeout(t);
+  }, [canPlay, fen, premoveOn, tryMove]);
+
+  // Coach candidates
+  useEffect(() => {
+    coachAbort.current?.abort();
+    if (!coachOn || !canPlay || gameOver) {
+      setCoachMoves([]);
+      return;
+    }
+    const live = new Chess(fen);
+    const weighted = pickWeightedCandidates(live, 3);
+    setCoachMoves(weighted);
+
+    const ac = new AbortController();
+    coachAbort.current = ac;
+    void (async () => {
+      try {
+        const { uci } = await askEngineMove(fen, 120, ac.signal);
+        if (ac.signal.aborted) return;
+        const parts = uciToMove(uci);
+        const probe = new Chess(fen);
+        let move;
+        try {
+          move = probe.move(parts);
+        } catch {
+          move = null;
+        }
+        if (!move) return;
+        setCoachMoves((prev) => {
+          const engineCand: CoachCandidate = {
+            san: move.san,
+            from: move.from as Square,
+            to: move.to as Square,
+            promotion: move.promotion,
+          };
+          const rest = prev.filter((c) => c.san !== engineCand.san).slice(0, 2);
+          return [engineCand, ...rest].slice(0, 3);
+        });
+      } catch {
+        // keep weighted picks
+      }
+    })();
+
+    return () => ac.abort();
+  }, [coachOn, canPlay, fen, gameOver]);
 
   const onSquareClick = (square: Square) => {
-    if (promo || !canPlay) return;
+    if (promo) return;
+
+    // Premove path
+    if (canPremove) {
+      const piece = position.get(square);
+      if (selected) {
+        if (selected === square) {
+          setSelected(null);
+          return;
+        }
+        if (piece && piece.color === playerColor) {
+          setSelected(square);
+          return;
+        }
+        const legal = position.moves({ square: selected, verbose: true });
+        // For premoves, opponent's turn — legal moves are opponent's; use ghost chess with our turn
+        const ghost = new Chess(fen);
+        // Force our color by temporarily... actually chess.js only allows current turn.
+        // Store intended from-to if selected piece is ours.
+        const selPiece = position.get(selected);
+        if (selPiece && selPiece.color === playerColor) {
+          setPremove({ from: selected, to: square });
+          setLastMove({ from: selected, to: square });
+          setSelected(null);
+          setStatusText(`Premove ${selected}${square}`);
+          return;
+        }
+        void legal;
+        setSelected(null);
+        return;
+      }
+      if (piece && piece.color === playerColor) setSelected(square);
+      return;
+    }
+
+    if (!canPlay) return;
 
     const piece = position.get(square);
     if (selected) {
       if (selected === square) {
         setSelected(null);
+        setPendingConfirm(null);
         return;
       }
       if (piece && piece.color === playerColor) {
         setSelected(square);
+        setPendingConfirm(null);
         return;
       }
       if (!legalTargets.includes(square)) {
         setSelected(null);
+        setPendingConfirm(null);
+        return;
+      }
+      if (confirmOn) {
+        setPendingConfirm({ from: selected, to: square });
         return;
       }
       void tryMove(selected, square);
@@ -569,12 +845,14 @@ export function GameShell(props: GameShellProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (promo || !canPlay) return;
+      if (promo || (!canPlay && !canPremove)) return;
       const target = e.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
 
       if (e.key === "Escape") {
         setSelected(null);
+        setPendingConfirm(null);
+        setPremove(null);
         return;
       }
 
@@ -589,22 +867,12 @@ export function GameShell(props: GameShellProps) {
         const from = selected ?? (playerColor === "w" ? ("e2" as Square) : ("e7" as Square));
         const next = shiftSquare(from, df, dr);
         if (next) setSelected(next);
-        return;
-      }
-
-      if ((e.key === "Enter" || e.key === " ") && selected) {
-        e.preventDefault();
-        const piece = position.get(selected);
-        if (piece && piece.color === playerColor) {
-          // selection only — second Enter on target would need two-step; use space on target after select
-        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canPlay, promo, orientation, selected, playerColor, position]);
+  }, [canPlay, canPremove, promo, orientation, selected, playerColor]);
 
-  // Keyboard: first arrow-select piece, Enter confirms move to highlighted legal if only one, else Enter on target
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!canPlay || !selected || promo) return;
@@ -613,14 +881,37 @@ export function GameShell(props: GameShellProps) {
       if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
       if (legalTargets.length === 1) {
         e.preventDefault();
-        void tryMove(selected, legalTargets[0]!);
+        if (confirmOn) {
+          setPendingConfirm({ from: selected, to: legalTargets[0]! });
+        } else {
+          void tryMove(selected, legalTargets[0]!);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // tryMove intentionally omitted — uses latest fen via closure on canPlay change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canPlay, selected, promo, legalTargets]);
+  }, [canPlay, selected, promo, legalTargets, confirmOn, tryMove]);
+
+  const submitSan = () => {
+    if (!canPlay || !sanInput.trim()) return;
+    const live = new Chess(fen);
+    let move;
+    try {
+      move = live.move(sanInput.trim());
+    } catch {
+      move = null;
+    }
+    if (!move) {
+      setStatusText("Illegal SAN");
+      return;
+    }
+    setSanInput("");
+    void tryMove(
+      move.from as Square,
+      move.to as Square,
+      move.promotion as "q" | "r" | "b" | "n" | undefined,
+    );
+  };
 
   const resetAi = () => {
     if (props.mode !== "ai") return;
@@ -632,6 +923,8 @@ export function GameShell(props: GameShellProps) {
     setStatusText("");
     setBanter("");
     setPromo(null);
+    setPendingConfirm(null);
+    setPremove(null);
     setShowOver(false);
     setEloNote("");
     scored.current = false;
@@ -676,6 +969,27 @@ export function GameShell(props: GameShellProps) {
     const next = modes[(idx + 1) % modes.length]!;
     setAmbientMode(next);
     setAmbient(next);
+  };
+
+  const cycleMood = () => {
+    const idx = moodId ? MOOD_ORDER.indexOf(moodId) : -1;
+    const next = MOOD_ORDER[(idx + 1) % MOOD_ORDER.length]!;
+    setMoodId(next);
+    setMood(next);
+    const pack = MOOD_PACKS[next];
+    if (pack.theme in BOARD_THEMES) {
+      setTheme(pack.theme as BoardTheme);
+      setBoardTheme(pack.theme as BoardTheme);
+    }
+    setAmbientMode(pack.ambient);
+    setAmbient(pack.ambient);
+  };
+
+  const cyclePieceSet = () => {
+    const idx = PIECE_ORDER.indexOf(pieceSet);
+    const next = PIECE_ORDER[(idx + 1) % PIECE_ORDER.length]!;
+    setPieceSetState(next);
+    setPieceSet(next);
   };
 
   const copyPgn = async () => {
@@ -748,6 +1062,13 @@ export function GameShell(props: GameShellProps) {
     takebackOfferBy &&
     takebackOfferBy !== playerColor &&
     !spectator;
+
+  const pieceFilter = PIECE_SETS[pieceSet].filter;
+  const premoveHighlight =
+    premove && turn !== playerColor
+      ? { from: premove.from, to: premove.to }
+      : null;
+  const boardLastMove = premoveHighlight ?? lastMove;
 
   return (
     <div className="game-layout relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start lg:gap-10">
@@ -828,19 +1149,31 @@ export function GameShell(props: GameShellProps) {
           </span>
         </div>
 
-        <ChessBoard
-          pieces={pieces}
-          orientation={orientation}
-          selected={selected}
-          legalTargets={legalTargets}
-          lastMove={lastMove}
-          inCheckSquare={inCheckSquare}
-          interactive={canPlay}
-          theme={theme}
-          showArrow={showArrow}
-          vignette={vignette}
-          onSquareClick={onSquareClick}
-        />
+        <div
+          className={`w-full max-w-[min(92vw,560px)] piece-set-${pieceSet}`}
+          style={{ filter: pieceFilter === "none" ? undefined : pieceFilter }}
+        >
+          <ChessBoard
+            pieces={pieces}
+            orientation={orientation}
+            selected={selected}
+            legalTargets={
+              canPremove && selected
+                ? []
+                : pendingConfirm
+                  ? [pendingConfirm.to]
+                  : legalTargets
+            }
+            lastMove={boardLastMove}
+            inCheckSquare={inCheckSquare}
+            interactive={canPlay || canPremove}
+            theme={theme}
+            showArrow={showArrow}
+            vignette={vignette}
+            hidePieces={blindfoldOn}
+            onSquareClick={onSquareClick}
+          />
+        </div>
 
         <div className="flex w-full max-w-[min(92vw,560px)] items-center justify-between gap-3">
           <span className="truncate text-sm text-[var(--mist)]">{bottomName}</span>
@@ -851,13 +1184,82 @@ export function GameShell(props: GameShellProps) {
           </span>
         </div>
 
+        {pendingConfirm && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-[var(--mist)]">
+              Confirm {pendingConfirm.from}→{pendingConfirm.to}?
+            </span>
+            <button
+              type="button"
+              className="chip touch-target"
+              onClick={() =>
+                void tryMove(pendingConfirm.from, pendingConfirm.to)
+              }
+            >
+              Confirm move
+            </button>
+            <button
+              type="button"
+              className="chip touch-target"
+              onClick={() => {
+                setPendingConfirm(null);
+                setSelected(null);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {coachOn && coachMoves.length > 0 && canPlay && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {coachMoves.map((c) => (
+              <button
+                key={c.san}
+                type="button"
+                className="chip touch-target"
+                onClick={() =>
+                  void tryMove(
+                    c.from,
+                    c.to,
+                    c.promotion as "q" | "r" | "b" | "n" | undefined,
+                  )
+                }
+              >
+                Coach {c.san}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {blindfoldOn && canPlay && (
+          <form
+            className="flex w-full max-w-[min(92vw,560px)] gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitSan();
+            }}
+          >
+            <input
+              className="field"
+              placeholder='Type SAN — e4, Nf3…'
+              value={sanInput}
+              onChange={(e) => setSanInput(e.target.value)}
+              aria-label="Blindfold move (SAN)"
+            />
+            <button type="submit" className="chip touch-target shrink-0">
+              Play
+            </button>
+          </form>
+        )}
+
         {promo && (
           <div className="flex gap-2 rounded-lg bg-[var(--panel)] p-3 ring-1 ring-[var(--brass-dim)]">
             {(["q", "r", "b", "n"] as const).map((p) => (
               <button
                 key={p}
                 type="button"
-                className="rounded bg-[var(--ink-soft)] p-2"
+                className="touch-target rounded bg-[var(--ink-soft)] p-2"
                 onClick={() => void tryMove(promo.from, promo.to, p)}
                 aria-label={`Promote to ${p}`}
               >
@@ -876,6 +1278,8 @@ export function GameShell(props: GameShellProps) {
           {title}
           {opening ? ` · ${opening}` : ""}
           {spectator ? " · Spectating" : ""}
+          {rated ? " · Rated" : " · Casual"}
+          {correspondence ? " · Correspondence" : ""}
         </p>
         <p className="text-center text-[10px] text-[var(--mist)]">
           Keys: arrows select · Enter moves (one legal) · Esc clears
@@ -918,12 +1322,12 @@ export function GameShell(props: GameShellProps) {
         </div>
 
         <div className="panel flex flex-wrap gap-2">
-          <button type="button" className="chip" onClick={cycleTheme}>
+          <button type="button" className="chip touch-target" onClick={cycleTheme}>
             {BOARD_THEMES[theme].label}
           </button>
           <button
             type="button"
-            className="chip"
+            className="chip touch-target"
             onClick={() => {
               const next = !soundOn;
               setSoundOn(next);
@@ -932,23 +1336,93 @@ export function GameShell(props: GameShellProps) {
           >
             Sound {soundOn ? "On" : "Off"}
           </button>
-          <button type="button" className="chip" onClick={cycleAmbient}>
+          <button type="button" className="chip touch-target" onClick={cycleAmbient}>
             Ambient {ambient}
           </button>
-          <button type="button" className="chip" onClick={() => setVignette((v) => !v)}>
+          <button
+            type="button"
+            className="chip touch-target"
+            onClick={() => {
+              if (getLampAuto()) {
+                setVignette(lampForHour().vignette);
+              } else {
+                setVignette((v) => !v);
+              }
+            }}
+          >
             Lamp {vignette ? "On" : "Off"}
           </button>
-          <button type="button" className="chip" onClick={() => setShowArrow((a) => !a)}>
+          <button
+            type="button"
+            className="chip touch-target"
+            onClick={() => setShowArrow((a) => !a)}
+          >
             Arrow {showArrow ? "On" : "Off"}
           </button>
-          <button type="button" className="chip" onClick={() => setFlipped((f) => !f)}>
+          <button
+            type="button"
+            className="chip touch-target"
+            onClick={() => setFlipped((f) => !f)}
+          >
             Flip
           </button>
-          <button type="button" className="chip" onClick={() => void copyPgn()}>
+          <button
+            type="button"
+            className={`chip touch-target ${confirmOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+            onClick={() => {
+              const next = !confirmOn;
+              setConfirmOn(next);
+              setConfirmMove(next);
+              setPendingConfirm(null);
+            }}
+          >
+            Confirm {confirmOn ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            className={`chip touch-target ${premoveOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+            onClick={() => {
+              const next = !premoveOn;
+              setPremoveOn(next);
+              setPremoveEnabled(next);
+              if (!next) setPremove(null);
+            }}
+          >
+            Premoves {premoveOn ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            className={`chip touch-target ${coachOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+            onClick={() => {
+              const next = !coachOn;
+              setCoachOn(next);
+              setCoachMode(next);
+            }}
+          >
+            Coach {coachOn ? "On" : "Off"}
+          </button>
+          <button
+            type="button"
+            className={`chip touch-target ${blindfoldOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+            onClick={() => {
+              const next = !blindfoldOn;
+              setBlindfoldOn(next);
+              setBlindfold(next);
+            }}
+          >
+            Blindfold {blindfoldOn ? "On" : "Off"}
+          </button>
+          <button type="button" className="chip touch-target" onClick={cyclePieceSet}>
+            Pieces {PIECE_SETS[pieceSet].label}
+          </button>
+          <button type="button" className="chip touch-target" onClick={cycleMood}>
+            Mood {moodId ? MOOD_PACKS[moodId].label : "Salon"}
+          </button>
+          <button type="button" className="chip touch-target" onClick={() => void copyPgn()}>
             Copy PGN
           </button>
           {!spectator && (
-            <button type="button" className="chip" onClick={resignLocal}>
+            <button type="button" className="chip touch-target" onClick={resignLocal}>
               Resign
             </button>
           )}
@@ -956,14 +1430,14 @@ export function GameShell(props: GameShellProps) {
             <>
               <button
                 type="button"
-                className="chip"
+                className="chip touch-target"
                 onClick={() => void props.onAction?.("offer-draw")}
               >
                 Offer draw
               </button>
               <button
                 type="button"
-                className="chip"
+                className="chip touch-target"
                 onClick={() => void props.onAction?.("offer-takeback")}
               >
                 Takeback
@@ -971,7 +1445,7 @@ export function GameShell(props: GameShellProps) {
               {(humanStatus === "waiting" || history.length <= 2) && (
                 <button
                   type="button"
-                  className="chip"
+                  className="chip touch-target"
                   onClick={() => void props.onAction?.("abort")}
                 >
                   Abort
@@ -981,18 +1455,25 @@ export function GameShell(props: GameShellProps) {
           )}
           {props.mode === "ai" && (
             <>
-              <button type="button" className="chip" onClick={undoAi}>
+              <button type="button" className="chip touch-target" onClick={undoAi}>
                 Undo
               </button>
-              <button type="button" className="chip" onClick={resetAi}>
+              <button type="button" className="chip touch-target" onClick={resetAi}>
                 New game
               </button>
             </>
           )}
-          <Link href="/play" className="chip inline-flex items-center">
+          <Link href="/play" className="chip touch-target inline-flex items-center">
             Lobby
           </Link>
         </div>
+
+        {props.mode === "human" && !spectator && (
+          <div className="panel">
+            <VoiceRoom code={props.code} />
+          </div>
+        )}
+
         <p className="text-xs text-[var(--mist)]">Local Elo {getElo()}</p>
       </aside>
     </div>

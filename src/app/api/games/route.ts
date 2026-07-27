@@ -1,9 +1,11 @@
 import { requireUser } from "@/lib/auth/requireUser";
+import { hashPassword } from "@/lib/auth/session";
 import { rateLimit, clientKey } from "@/lib/rateLimit";
 import { generateGameCode, generatePlayerToken } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { friendships, gameInvites, games } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
+import { touchPresence } from "@/lib/notify";
 import { getPusher, userChannel } from "@/lib/pusher/server";
 import { and, eq, or } from "drizzle-orm";
 import { cookies } from "next/headers";
@@ -42,6 +44,12 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     timeControl?: TimeControlId;
     inviteFriendId?: string;
+    rated?: boolean;
+    correspondence?: boolean;
+    password?: string;
+    maxSpectators?: number;
+    revealNames?: boolean;
+    clubId?: string;
   };
   const tcId =
     body.timeControl && body.timeControl in TIME_CONTROLS
@@ -56,6 +64,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Not friends" }, { status: 403 });
     }
   }
+
+  const passwordHash =
+    body.password && body.password.length > 0
+      ? await hashPassword(body.password)
+      : null;
+
+  const maxSpectators = Math.min(
+    Math.max(Number(body.maxSpectators) || 50, 0),
+    200,
+  );
 
   let code = generateGameCode();
   for (let i = 0; i < 5; i++) {
@@ -72,6 +90,12 @@ export async function POST(request: Request) {
           blackClockMs: tc.baseMs,
           timeControlMs: tc.baseMs,
           incrementMs: tc.incMs,
+          rated: body.rated !== false,
+          correspondence: Boolean(body.correspondence),
+          passwordHash,
+          maxSpectators,
+          revealNames: body.revealNames !== false,
+          clubId: body.clubId || null,
         })
         .returning();
 
@@ -82,6 +106,8 @@ export async function POST(request: Request) {
         path: "/",
         maxAge: 60 * 60 * 24,
       });
+
+      await touchPresence(me.id, "ingame", row.code);
 
       if (inviteFriendId) {
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -117,6 +143,8 @@ export async function POST(request: Request) {
         displayName: me.username,
         timeControl: tcId,
         invited: Boolean(inviteFriendId),
+        rated: row.rated,
+        correspondence: row.correspondence,
       });
     } catch {
       code = generateGameCode();

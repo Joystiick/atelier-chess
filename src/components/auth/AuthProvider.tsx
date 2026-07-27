@@ -1,6 +1,7 @@
 "use client";
 
 import { avatarEmoji } from "@/lib/auth/avatars";
+import { NotificationBell } from "@/components/ui/NotificationBell";
 import {
   createContext,
   useCallback,
@@ -73,16 +74,19 @@ export function UserChip() {
   if (loading) return null;
   if (!user) {
     return (
-      <a href="/login" className="chip inline-flex items-center gap-1">
+      <a href="/login?next=%2Fplay" className="chip inline-flex items-center gap-1">
         Sign in
       </a>
     );
   }
   return (
-    <a href="/profile" className="chip inline-flex items-center gap-2">
-      <span aria-hidden>{avatarEmoji(user.avatarId)}</span>
-      <span>{user.username}</span>
-      <span className="text-[var(--brass)]">{user.elo}</span>
-    </a>
+    <span className="inline-flex items-center gap-2">
+      <NotificationBell />
+      <a href="/profile" className="chip inline-flex items-center gap-2">
+        <span aria-hidden>{avatarEmoji(user.avatarId)}</span>
+        <span>{user.username}</span>
+        <span className="text-[var(--brass)]">{user.elo}</span>
+      </a>
+    </span>
   );
 }

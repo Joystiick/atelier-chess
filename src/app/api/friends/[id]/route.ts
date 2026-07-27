@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/requireUser";
 import { db } from "@/lib/db";
 import { friendships, users } from "@/lib/db/schema";
+import { notifyUser } from "@/lib/notify";
 import { getPusher, userChannel } from "@/lib/pusher/server";
 import { and, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -42,6 +43,14 @@ export async function POST(request: Request, { params }: Params) {
     .where(eq(friendships.id, id));
 
   const [meRow] = await db.select().from(users).where(eq(users.id, me.id)).limit(1);
+
+  await notifyUser({
+    userId: row.requesterId,
+    kind: "friend",
+    title: "Friend request accepted",
+    body: `${meRow?.username ?? me.username} accepted your friend request`,
+    href: "/friends",
+  });
 
   try {
     await getPusher().trigger(userChannel(row.requesterId), "friend.accepted", {

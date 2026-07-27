@@ -249,8 +249,28 @@ body {
   cursor: pointer;
 }
 
+@media (max-width: 640px) {
+  .chip {
+    padding: 0.55rem 1rem;
+    font-size: 0.9rem;
+  }
+}
+
 .chip:hover {
   border-color: var(--brass);
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.piece-set-ink {
+  filter: grayscale(0.35) contrast(1.15);
+}
+
+.piece-set-brass-glow {
+  filter: sepia(0.45) saturate(1.4) hue-rotate(5deg);
 }
 
 .mode-card {

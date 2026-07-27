@@ -267,9 +267,17 @@ export default function FriendsPage() {
               <p className="text-[var(--cream)]">
                 {f.avatar} {f.username}
               </p>
-              <p className="text-xs text-[var(--mist)]">Elo {f.elo}</p>
+              <p className="text-xs text-[var(--mist)]">
+                Elo {f.elo}
+                {f.presence ? ` · ${f.presence}` : ""}
+              </p>
             </div>
             <div className="flex gap-1">
+              {f.spectateHref && (
+                <Link href={f.spectateHref} className="chip">
+                  Spectate
+                </Link>
+              )}
               <button
                 type="button"
                 className="chip"
