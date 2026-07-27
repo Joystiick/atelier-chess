@@ -1,5 +1,6 @@
 "use client";
 
+import { useFriendsFeed } from "@/hooks/useFriendsFeed";
 import { useState } from "react";
 
 type WaitingRoomProps = {
@@ -9,6 +10,8 @@ type WaitingRoomProps = {
 
 export function WaitingRoom({ code, hostName }: WaitingRoomProps) {
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [inviteMsg, setInviteMsg] = useState("");
+  const { friends } = useFriendsFeed();
 
   const shareUrl =
     typeof window !== "undefined"
@@ -22,9 +25,24 @@ export function WaitingRoom({ code, hostName }: WaitingRoomProps) {
     window.setTimeout(() => setCopied(null), 1600);
   };
 
+  const inviteFriend = async (friendId: string, username: string) => {
+    setInviteMsg("");
+    const res = await fetch("/api/friends/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ friendId, code }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setInviteMsg(data.error ?? "Invite failed");
+      return;
+    }
+    setInviteMsg(`Invited ${username}`);
+  };
+
   return (
     <div className="overlay-scrim" style={{ background: "rgba(0,0,0,0.4)" }}>
-      <div className="overlay-card space-y-4">
+      <div className="overlay-card max-h-[90vh] space-y-4 overflow-y-auto">
         <p className="text-sm uppercase tracking-[0.2em] text-[var(--brass)]">
           Waiting for opponent
         </p>
@@ -35,7 +53,7 @@ export function WaitingRoom({ code, hostName }: WaitingRoomProps) {
           {code}
         </p>
         <p className="text-sm text-[var(--mist)]">
-          Share this code — the board unlocks when they join.
+          Share the code, or invite a friend below.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button type="button" className="btn-primary flex-1" onClick={() => void copy("code")}>
@@ -45,6 +63,28 @@ export function WaitingRoom({ code, hostName }: WaitingRoomProps) {
             {copied === "link" ? "Copied link" : "Copy invite link"}
           </button>
         </div>
+
+        {friends.length > 0 && (
+          <div className="space-y-2 border-t border-white/10 pt-3 text-left">
+            <p className="text-xs uppercase tracking-widest text-[var(--mist)]">
+              Invite a friend
+            </p>
+            {friends.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="flex w-full items-center justify-between rounded-lg bg-black/20 px-3 py-2 text-sm hover:bg-black/30"
+                onClick={() => void inviteFriend(f.id, f.username)}
+              >
+                <span>
+                  {f.avatar} {f.username}
+                </span>
+                <span className="text-[var(--brass)]">Invite</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {inviteMsg && <p className="text-sm text-[var(--brass)]">{inviteMsg}</p>}
       </div>
     </div>
   );

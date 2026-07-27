@@ -1,3 +1,4 @@
+import { readSession } from "@/lib/auth/session";
 import { isValidCode } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
@@ -22,8 +23,22 @@ export async function POST(request: Request) {
     channel = body.channel_name ?? "";
   }
 
+  if (!socketId || !channel) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const userMatch = /^private-user-([0-9a-f-]{36})$/i.exec(channel);
+  if (userMatch) {
+    const session = await readSession();
+    if (!session || session.id !== userMatch[1]) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const auth = getPusher().authorizeChannel(socketId, channel);
+    return NextResponse.json(auth);
+  }
+
   const match = /^private-game-(\d{8})$/.exec(channel);
-  if (!match || !socketId) {
+  if (!match) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const code = match[1];

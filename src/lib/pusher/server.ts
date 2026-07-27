@@ -24,3 +24,7 @@ export function getPusher(): Pusher {
 export function gameChannel(code: string) {
   return `private-game-${code}`;
 }
+
+export function userChannel(userId: string) {
+  return `private-user-${userId}`;
+}

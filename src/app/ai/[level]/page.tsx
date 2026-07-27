@@ -1,30 +1,24 @@
 "use client";
 
-import { UserChip } from "@/components/auth/AuthProvider";
+import { UserChip, useAuth } from "@/components/auth/AuthProvider";
 import { GameShell } from "@/components/game/GameShell";
 import type { AiLevel } from "@/lib/chess/engine";
 import { AI_RIVALS } from "@/lib/chess/engine";
 import {
   TIME_CONTROLS,
-  getCachedDisplayName,
   getPreferredTimeControl,
-  sanitizeDisplayName,
   type TimeControlId,
 } from "@/lib/names";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-
-function initialName() {
-  if (typeof window === "undefined") return "Wanderer";
-  return sanitizeDisplayName(getCachedDisplayName());
-}
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 export default function AiPage() {
   const params = useParams<{ level: string }>();
+  const router = useRouter();
+  const { user, loading } = useAuth();
   const level = (params.level as AiLevel) ?? "medium";
   const valid = level in AI_RIVALS;
-  const [name] = useState(initialName);
   const [tcId, setTcId] = useState<TimeControlId>(() => {
     if (typeof window === "undefined") return "∞";
     return getPreferredTimeControl();
@@ -32,11 +26,23 @@ export default function AiPage() {
 
   const clockMs = useMemo(() => TIME_CONTROLS[tcId]?.baseMs ?? 0, [tcId]);
 
+  useEffect(() => {
+    if (!loading && !user) router.replace("/login?next=/ai/" + level);
+  }, [loading, user, router, level]);
+
   if (!valid) {
     return (
       <main className="p-8">
         <p>Unknown rival.</p>
         <Link href="/play">Back</Link>
+      </main>
+    );
+  }
+
+  if (loading || !user) {
+    return (
+      <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+        Checking account…
       </main>
     );
   }
@@ -63,7 +69,13 @@ export default function AiPage() {
           <UserChip />
         </div>
       </div>
-      <GameShell mode="ai" level={level} playerName={name} clockMs={clockMs} key={`${level}-${tcId}`} />
+      <GameShell
+        mode="ai"
+        level={level}
+        playerName={user.username}
+        clockMs={clockMs}
+        key={`${level}-${tcId}`}
+      />
     </main>
   );
 }

@@ -23,8 +23,9 @@ export default function HowToPage() {
           Human tables
         </h2>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Create a table, share the 8-digit code or invite link.</li>
-          <li>Pick a time control before creating (3+2, 5+0, 10+0, 15+10).</li>
+          <li>Sign in is required to play (AI, human tables, and friends).</li>
+          <li>Create a table, share the 8-digit code, or invite a friend from your list.</li>
+          <li>Pick a time control before creating (Unlimited, 3+2, 5+0, 10+0, 15+10).</li>
           <li>Offer draw, takeback, or abort early; resign later.</li>
           <li>Open <code className="text-[var(--brass)]">?spectate=1</code> to watch.</li>
         </ul>

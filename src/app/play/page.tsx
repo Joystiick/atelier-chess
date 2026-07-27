@@ -1,72 +1,49 @@
 "use client";
 
-import { UserChip } from "@/components/auth/AuthProvider";
+import { UserChip, useAuth } from "@/components/auth/AuthProvider";
+import { useFriendsFeed } from "@/hooks/useFriendsFeed";
 import { AI_RIVALS, type AiLevel } from "@/lib/chess/engine";
 import { playSound } from "@/lib/chess/sound";
 import {
   TIME_CONTROLS,
-  getCachedDisplayName,
-  getElo,
-  getLastOpponent,
   getPreferredTimeControl,
   getRecentTables,
-  hasSeenHowTo,
-  sanitizeDisplayName,
-  setCachedDisplayName,
   setPreferredTimeControl,
-  setSeenHowTo,
   type TimeControlId,
 } from "@/lib/names";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-type Step = "name" | "modes" | "human" | "ai";
-
-function initialName() {
-  if (typeof window === "undefined") return "";
-  return getCachedDisplayName();
-}
+type Step = "modes" | "human" | "ai" | "invite";
 
 function PlayPageInner() {
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const search = useSearchParams();
   const joinParam = search.get("join")?.replace(/\D/g, "").slice(0, 8) ?? "";
 
-  const [step, setStep] = useState<Step>("name");
-  const [name, setName] = useState(initialName);
+  const { friends, invites, incoming, refresh } = useFriendsFeed();
+  const [step, setStep] = useState<Step>(joinParam ? "human" : "modes");
   const [code, setCode] = useState(joinParam);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [timeControl, setTimeControl] = useState<TimeControlId>("10|0");
   const [recent, setRecent] = useState<{ code: string; opponent: string }[]>([]);
-  const [lastOpp, setLastOpp] = useState("");
-  const [elo, setElo] = useState(1200);
+  const [inviteFriendId, setInviteFriendId] = useState<string | null>(null);
 
   useEffect(() => {
     setTimeControl(getPreferredTimeControl());
     setRecent(getRecentTables());
-    setLastOpp(getLastOpponent());
-    setElo(getElo());
-    if (!hasSeenHowTo()) {
-      // soft nudge — don't force
-    }
   }, []);
 
-  const confirmName = () => {
-    const cleaned = sanitizeDisplayName(name);
-    setName(cleaned);
-    setCachedDisplayName(cleaned);
-    playSound("click");
-    if (joinParam.length === 8) {
-      setCode(joinParam);
-      setStep("human");
-    } else {
-      setStep("modes");
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace(`/login?next=${encodeURIComponent("/play" + (joinParam ? `?join=${joinParam}` : ""))}`);
     }
-  };
+  }, [authLoading, user, router, joinParam]);
 
-  const createGame = async () => {
+  const createGame = async (friendId?: string | null) => {
     setBusy(true);
     setError("");
     setPreferredTimeControl(timeControl);
@@ -74,7 +51,10 @@ function PlayPageInner() {
       const res = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: name, timeControl }),
+        body: JSON.stringify({
+          timeControl,
+          inviteFriendId: friendId || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -94,10 +74,7 @@ function PlayPageInner() {
       const res = await fetch("/api/games/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: joinCode.replace(/\D/g, ""),
-          displayName: name,
-        }),
+        body: JSON.stringify({ code: joinCode.replace(/\D/g, "") }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -110,6 +87,29 @@ function PlayPageInner() {
     }
   };
 
+  const acceptInvite = async (inviteId: string) => {
+    const res = await fetch(`/api/friends/invite/${inviteId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "accept" }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Could not join");
+      return;
+    }
+    playSound("start");
+    router.push(`/game/${data.code}`);
+  };
+
+  if (authLoading || !user) {
+    return (
+      <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+        Checking account…
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-4 py-10">
       <div className="mb-8 flex items-center justify-between">
@@ -119,31 +119,27 @@ function PlayPageInner() {
         <UserChip />
       </div>
 
-      {step === "name" && (
-        <section className="space-y-4">
-          <h1 className="font-[family-name:var(--font-display)] text-4xl text-[var(--cream)]">
-            Your name
-          </h1>
-          <p className="text-[var(--mist)]">
-            Saved on this device. Local Elo {elo}
-            {lastOpp ? ` · Last faced ${lastOpp}` : ""}
-          </p>
-          <input
-            className="field"
-            value={name}
-            maxLength={20}
-            placeholder="Display name"
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") confirmName();
-            }}
-          />
-          <button type="button" className="btn-primary w-full" onClick={confirmName}>
-            Continue
-          </button>
-          <Link href="/how-to" className="block text-center text-sm text-[var(--brass)]">
-            How to play
-          </Link>
+      {(invites.length > 0 || incoming.length > 0) && step === "modes" && (
+        <section className="panel mb-4 space-y-2">
+          {invites.map((inv) => (
+            <div key={inv.id} className="flex items-center justify-between text-sm">
+              <span>
+                Invite from {inv.from?.avatar} {inv.from?.username}
+              </span>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => void acceptInvite(inv.id)}
+              >
+                Join
+              </button>
+            </div>
+          ))}
+          {incoming.length > 0 && (
+            <Link href="/friends" className="block text-sm text-[var(--brass)]">
+              {incoming.length} friend request{incoming.length > 1 ? "s" : ""} →
+            </Link>
+          )}
         </section>
       )}
 
@@ -153,7 +149,7 @@ function PlayPageInner() {
             Choose a mode
           </h1>
           <p className="mb-2 text-[var(--mist)]">
-            Playing as {name} · Elo {elo}
+            {user.username} · Elo {user.elo}
           </p>
           <button
             type="button"
@@ -164,7 +160,7 @@ function PlayPageInner() {
             }}
           >
             <h3>Human</h3>
-            <p>Create a table or join with an 8-digit code.</p>
+            <p>Create a table, join a code, or invite a friend.</p>
           </button>
           <button
             type="button"
@@ -182,22 +178,25 @@ function PlayPageInner() {
             className="mode-card"
             onClick={() => {
               playSound("click");
-              router.push("/puzzle");
+              router.push("/friends");
             }}
           >
-            <h3>Daily puzzle</h3>
-            <p>One mate puzzle refreshed each day.</p>
+            <h3>Friends</h3>
+            <p>
+              {friends.length} friend{friends.length === 1 ? "" : "s"}
+              {invites.length ? ` · ${invites.length} invite${invites.length > 1 ? "s" : ""}` : ""}
+            </p>
           </button>
           <button
             type="button"
             className="mode-card"
             onClick={() => {
               playSound("click");
-              router.push("/puzzle/rush");
+              router.push("/puzzle");
             }}
           >
-            <h3>Puzzle rush</h3>
-            <p>Solve a streak of mates against the clock.</p>
+            <h3>Puzzles</h3>
+            <p>Daily puzzle or rush.</p>
           </button>
           {recent.length > 0 && (
             <div className="panel mt-2">
@@ -220,14 +219,7 @@ function PlayPageInner() {
               </ul>
             </div>
           )}
-          <button type="button" className="btn-ghost mt-2" onClick={() => setStep("name")}>
-            Change name
-          </button>
-          <Link
-            href="/how-to"
-            className="block text-center text-sm text-[var(--mist)]"
-            onClick={() => setSeenHowTo()}
-          >
+          <Link href="/how-to" className="block text-center text-sm text-[var(--mist)]">
             How to play
           </Link>
         </section>
@@ -254,9 +246,21 @@ function PlayPageInner() {
             type="button"
             className="btn-primary w-full"
             disabled={busy}
-            onClick={() => void createGame()}
+            onClick={() => void createGame(null)}
           >
             {busy ? "Creating…" : "Create table"}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            disabled={busy || friends.length === 0}
+            onClick={() => {
+              playSound("click");
+              setStep("invite");
+              void refresh();
+            }}
+          >
+            Invite a friend…
           </button>
           <div className="relative py-2 text-center text-xs uppercase tracking-widest text-[var(--mist)]">
             or join
@@ -287,6 +291,46 @@ function PlayPageInner() {
           )}
           {error && <p className="text-sm text-red-300">{error}</p>}
           <button type="button" className="btn-ghost" onClick={() => setStep("modes")}>
+            Back
+          </button>
+        </section>
+      )}
+
+      {step === "invite" && (
+        <section className="space-y-3">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl">
+            Invite friend
+          </h1>
+          <p className="text-sm text-[var(--mist)]">
+            Opens a table and sends them an invite ({TIME_CONTROLS[timeControl].label}).
+          </p>
+          {friends.length === 0 && (
+            <p className="text-sm text-[var(--mist)]">
+              No friends yet.{" "}
+              <Link href="/friends" className="text-[var(--brass)]">
+                Add some
+              </Link>
+            </p>
+          )}
+          {friends.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`mode-card text-left ${inviteFriendId === f.id ? "ring-1 ring-[var(--brass)]" : ""}`}
+              disabled={busy}
+              onClick={() => {
+                setInviteFriendId(f.id);
+                void createGame(f.id);
+              }}
+            >
+              <h3>
+                {f.avatar} {f.username}
+              </h3>
+              <p>Elo {f.elo} · Challenge</p>
+            </button>
+          ))}
+          {error && <p className="text-sm text-red-300">{error}</p>}
+          <button type="button" className="btn-ghost" onClick={() => setStep("human")}>
             Back
           </button>
         </section>

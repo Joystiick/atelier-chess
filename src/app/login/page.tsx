@@ -2,11 +2,12 @@
 
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginInner() {
+  const search = useSearchParams();
+  const next = search.get("next") || "/play";
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +25,8 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       playSound("click");
-      window.location.href = "/profile";
+      const dest = next.startsWith("/") ? next : "/play";
+      window.location.href = dest;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not sign in");
     } finally {
@@ -38,6 +40,7 @@ export default function LoginPage() {
         ← Atelier
       </Link>
       <h1 className="font-[family-name:var(--font-display)] text-4xl">Sign in</h1>
+      <p className="mt-2 text-sm text-[var(--mist)]">An account is required to play.</p>
       <div className="mt-6 space-y-3">
         <input
           className="field"
@@ -74,11 +77,28 @@ export default function LoginPage() {
         </p>
         <p className="text-center text-sm text-[var(--mist)]">
           New here?{" "}
-          <Link href="/register" className="text-[var(--brass)]">
+          <Link
+            href={`/register?next=${encodeURIComponent(next)}`}
+            className="text-[var(--brass)]"
+          >
             Create account
           </Link>
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+          Loading…
+        </main>
+      }
+    >
+      <LoginInner />
+    </Suspense>
   );
 }

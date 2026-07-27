@@ -3,11 +3,12 @@
 import { AVATARS, type AvatarId } from "@/lib/auth/avatars";
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function RegisterPage() {
-  const router = useRouter();
+function RegisterInner() {
+  const search = useSearchParams();
+  const next = search.get("next") || "/play";
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,7 +28,8 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       playSound("start");
-      window.location.href = "/profile";
+      const dest = next.startsWith("/") ? next : "/play";
+      window.location.href = dest;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not register");
     } finally {
@@ -41,7 +43,7 @@ export default function RegisterPage() {
         ← Atelier
       </Link>
       <h1 className="font-[family-name:var(--font-display)] text-4xl">Create account</h1>
-      <p className="mt-2 text-[var(--mist)]">Save your Elo, avatar, and username.</p>
+      <p className="mt-2 text-[var(--mist)]">Required to play — Elo, friends, and invites.</p>
       <div className="mt-6 space-y-3">
         <input
           className="field"
@@ -94,11 +96,28 @@ export default function RegisterPage() {
         </button>
         <p className="text-center text-sm text-[var(--mist)]">
           Already have one?{" "}
-          <Link href="/login" className="text-[var(--brass)]">
+          <Link
+            href={`/login?next=${encodeURIComponent(next)}`}
+            className="text-[var(--brass)]"
+          >
             Sign in
           </Link>
         </p>
       </div>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+          Loading…
+        </main>
+      }
+    >
+      <RegisterInner />
+    </Suspense>
   );
 }

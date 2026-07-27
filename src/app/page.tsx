@@ -19,8 +19,8 @@ export default function HomePage() {
             How to play
           </Link>
           {" · "}
-          <Link href="/puzzle" className="text-[var(--brass)] hover:underline">
-            Daily puzzle
+          <Link href="/friends" className="text-[var(--brass)] hover:underline">
+            Friends
           </Link>
           {" · "}
           <Link href="/login" className="text-[var(--brass)] hover:underline">

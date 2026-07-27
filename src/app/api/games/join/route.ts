@@ -1,8 +1,8 @@
+import { requireUser } from "@/lib/auth/requireUser";
 import { isValidCode } from "@/lib/codes";
 import { generatePlayerToken } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
-import { sanitizeDisplayName } from "@/lib/names";
 import { gameChannel, getPusher } from "@/lib/pusher/server";
 import { clientKey, rateLimit } from "@/lib/rateLimit";
 import { eq } from "drizzle-orm";
@@ -17,16 +17,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Too many joins — wait a moment" }, { status: 429 });
   }
 
+  const auth = await requireUser();
+  if (auth.error) return auth.error;
+  const me = auth.user;
+
   const body = (await request.json().catch(() => ({}))) as {
     code?: string;
-    displayName?: string;
   };
   const code = (body.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
   if (!isValidCode(code)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  const displayName = sanitizeDisplayName(body.displayName ?? "");
   const [game] = await db.select().from(games).where(eq(games.code, code)).limit(1);
   if (!game) {
     return NextResponse.json({ error: "Table not found" }, { status: 404 });
@@ -55,6 +57,38 @@ export async function POST(request: Request) {
     });
   }
 
+  // Reclaim own seat if cookies cleared but user id matches
+  if (game.whiteUserId === me.id && game.whiteToken) {
+    jar.set(`atelier_seat_${code}`, `w:${game.whiteToken}`, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+    return NextResponse.json({
+      code,
+      color: "w" as const,
+      displayName: game.whiteName,
+      status: game.status,
+      rejoined: true,
+    });
+  }
+  if (game.blackUserId === me.id && game.blackToken) {
+    jar.set(`atelier_seat_${code}`, `b:${game.blackToken}`, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+    return NextResponse.json({
+      code,
+      color: "b" as const,
+      displayName: game.blackName,
+      status: game.status,
+      rejoined: true,
+    });
+  }
+
   if (game.blackToken) {
     return NextResponse.json({ error: "Table is full" }, { status: 409 });
   }
@@ -63,8 +97,9 @@ export async function POST(request: Request) {
   const [updated] = await db
     .update(games)
     .set({
-      blackName: displayName,
+      blackName: me.username,
       blackToken: token,
+      blackUserId: me.id,
       status: "active",
       updatedAt: new Date(),
     })
@@ -80,17 +115,17 @@ export async function POST(request: Request) {
 
   try {
     await getPusher().trigger(gameChannel(code), "player.joined", {
-      blackName: displayName,
+      blackName: me.username,
       status: "active",
     });
   } catch {
-    // Realtime optional at join; state still in Neon
+    // Realtime optional at join
   }
 
   return NextResponse.json({
     code: updated.code,
     color: "b" as const,
-    displayName,
+    displayName: me.username,
     status: updated.status,
   });
 }

@@ -110,7 +110,61 @@ export const passwordResets = pgTable("password_resets", {
     .defaultNow(),
 });
 
+export const friendshipStatusEnum = pgEnum("friendship_status", [
+  "pending",
+  "accepted",
+  "blocked",
+]);
+
+export const friendships = pgTable(
+  "friendships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    addresseeId: uuid("addressee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: friendshipStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("friendships_pair_idx").on(table.requesterId, table.addresseeId),
+  ],
+);
+
+export const gameInviteStatusEnum = pgEnum("game_invite_status", [
+  "pending",
+  "accepted",
+  "declined",
+  "expired",
+]);
+
+export const gameInvites = pgTable("game_invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  gameCode: text("game_code").notNull(),
+  fromUserId: uuid("from_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  toUserId: uuid("to_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: gameInviteStatusEnum("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 export type Game = typeof games.$inferSelect;
 export type MoveRow = typeof moves.$inferSelect;
 export type Puzzle = typeof puzzles.$inferSelect;
 export type User = typeof users.$inferSelect;
+export type Friendship = typeof friendships.$inferSelect;
+export type GameInvite = typeof gameInvites.$inferSelect;
