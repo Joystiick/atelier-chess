@@ -34,14 +34,12 @@ export const games = pgTable(
     result: text("result"),
     whiteClockMs: integer("white_clock_ms").notNull().default(600_000),
     blackClockMs: integer("black_clock_ms").notNull().default(600_000),
-    /** Base minutes * 60_000 */
     timeControlMs: integer("time_control_ms").notNull().default(600_000),
-    /** Increment per move in ms */
     incrementMs: integer("increment_ms").notNull().default(0),
-    /** Pending draw offer from 'w' | 'b' */
     drawOfferBy: text("draw_offer_by"),
-    /** Pending takeback offer from 'w' | 'b' */
     takebackOfferBy: text("takeback_offer_by"),
+    whiteUserId: uuid("white_user_id"),
+    blackUserId: uuid("black_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -69,7 +67,6 @@ export const moves = pgTable("moves", {
 export const puzzles = pgTable("puzzles", {
   id: uuid("id").defaultRandom().primaryKey(),
   fen: text("fen").notNull(),
-  /** Comma-separated UCI solution moves */
   solution: text("solution").notNull(),
   title: text("title").notNull().default("Mate puzzle"),
   rating: integer("rating").notNull().default(1200),
@@ -78,6 +75,42 @@ export const puzzles = pgTable("puzzles", {
     .defaultNow(),
 });
 
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    username: text("username").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    avatarId: text("avatar_id").notNull().default("knight-brass"),
+    elo: integer("elo").notNull().default(1200),
+    gamesPlayed: integer("games_played").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("users_email_idx").on(table.email),
+    uniqueIndex("users_username_idx").on(table.username),
+  ],
+);
+
+export const passwordResets = pgTable("password_resets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type Game = typeof games.$inferSelect;
 export type MoveRow = typeof moves.$inferSelect;
 export type Puzzle = typeof puzzles.$inferSelect;
+export type User = typeof users.$inferSelect;

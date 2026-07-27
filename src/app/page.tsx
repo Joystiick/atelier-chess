@@ -1,9 +1,13 @@
+import { UserChip } from "@/components/auth/AuthProvider";
 import { PlayButton } from "@/components/home/PlayButton";
 import Link from "next/link";
 
 export default function HomePage() {
   return (
     <main className="hero">
+      <div className="absolute right-4 top-4 z-10">
+        <UserChip />
+      </div>
       <div className="hero-stage">
         <h1 className="brand">Atelier</h1>
         <p className="brand-sub">
@@ -17,6 +21,10 @@ export default function HomePage() {
           {" · "}
           <Link href="/puzzle" className="text-[var(--brass)] hover:underline">
             Daily puzzle
+          </Link>
+          {" · "}
+          <Link href="/login" className="text-[var(--brass)] hover:underline">
+            Account
           </Link>
         </p>
         <p className="mt-8 text-xs text-[var(--mist)]">

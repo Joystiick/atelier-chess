@@ -59,17 +59,20 @@ export async function POST(request: Request, { params }: Params) {
   const elapsed = Math.max(0, Date.now() - new Date(game.updatedAt).getTime());
   let whiteClockMs = game.whiteClockMs;
   let blackClockMs = game.blackClockMs;
-  if (color === "w") {
-    whiteClockMs = Math.max(0, whiteClockMs - elapsed) + (game.incrementMs ?? 0);
-  } else {
-    blackClockMs = Math.max(0, blackClockMs - elapsed) + (game.incrementMs ?? 0);
+  const unlimited = (game.timeControlMs ?? 1) === 0;
+  if (!unlimited) {
+    if (color === "w") {
+      whiteClockMs = Math.max(0, whiteClockMs - elapsed) + (game.incrementMs ?? 0);
+    } else {
+      blackClockMs = Math.max(0, blackClockMs - elapsed) + (game.incrementMs ?? 0);
+    }
   }
 
   let status: "waiting" | "active" | "finished" | "abandoned" = "active";
   let winner: string | null = null;
   let result: string | null = null;
 
-  if (whiteClockMs <= 0 || blackClockMs <= 0) {
+  if (!unlimited && (whiteClockMs <= 0 || blackClockMs <= 0)) {
     status = "finished";
     winner = whiteClockMs <= 0 ? "b" : "w";
     result = `Flag — ${winner === "w" ? "White" : "Black"} wins on time`;

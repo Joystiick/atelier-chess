@@ -1,26 +1,38 @@
+import { Chess } from "chess.js";
+
 export type AiLevel = "easy" | "medium" | "hard";
 
 export const AI_RIVALS: Record<
   AiLevel,
-  { name: string; title: string; blurb: string; searchMs: number }
+  {
+    name: string;
+    title: string;
+    blurb: string;
+    searchMs: number;
+    /** Chance to ignore the engine and play a weaker/random move */
+    blunderRate: number;
+  }
 > = {
   easy: {
     name: "The Apprentice",
     title: "Easy",
-    blurb: "Curious, careless, and still learning the weight of a pawn.",
-    searchMs: 300,
+    blurb: "Plays casually — great for learning. Classmates should win often.",
+    searchMs: 40,
+    blunderRate: 0.82,
   },
   medium: {
     name: "The Clerk",
     title: "Medium",
-    blurb: "Keeps tidy ledgers. Punishes the obvious mistake.",
-    searchMs: 1000,
+    blurb: "Solid club strength. Punishes loose pieces, still missable.",
+    searchMs: 450,
+    blunderRate: 0.22,
   },
   hard: {
     name: "The Grandmaster's Shadow",
     title: "Hard",
-    blurb: "Strong and patient. Punishes mistakes.",
-    searchMs: 2500,
+    blurb: "Strong and patient. Few free mistakes.",
+    searchMs: 2200,
+    blunderRate: 0.03,
   },
 };
 
@@ -31,6 +43,40 @@ export type EngineBestMove = {
 
 export function createGarboWorker(): Worker {
   return new Worker("/engine/garbochess.js");
+}
+
+function moveToUci(m: {
+  from: string;
+  to: string;
+  promotion?: string | undefined;
+}): string {
+  return `${m.from}${m.to}${m.promotion ?? ""}`;
+}
+
+/** Prefer quieter mistakes on Easy — not always hanging the queen on move 1. */
+function pickHumanishMove(fen: string): EngineBestMove {
+  const chess = new Chess(fen);
+  const legal = chess.moves({ verbose: true });
+  if (legal.length === 0) {
+    throw new Error("No legal moves");
+  }
+
+  // Weight: checks & captures a bit more often (looks intentional), else random
+  const checks = legal.filter((m) => {
+    const c = new Chess(fen);
+    c.move(m);
+    return c.inCheck();
+  });
+  const captures = legal.filter((m) => Boolean(m.captured));
+  const pool =
+    Math.random() < 0.2 && checks.length > 0
+      ? checks
+      : Math.random() < 0.35 && captures.length > 0
+        ? captures
+        : legal;
+
+  const pick = pool[Math.floor(Math.random() * pool.length)]!;
+  return { uci: moveToUci(pick) };
 }
 
 export function askEngineMove(
@@ -76,7 +122,6 @@ export function askEngineMove(
         fail(new Error(data.slice(8)));
         return;
       }
-      // Best move in UCI-ish form e.g. e2e4 or e7e8q
       if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(data)) {
         succeed({ uci: data, pv: lastPv || undefined });
       }
@@ -92,6 +137,23 @@ export function askEngineMove(
       if (!settled) fail(new Error("Engine timed out"));
     }, searchMs + 8000);
   });
+}
+
+/** Difficulty-aware move: Easy is mostly humanish random, Hard is near-full engine. */
+export async function askAiMove(
+  level: AiLevel,
+  fen: string,
+  signal?: AbortSignal,
+): Promise<EngineBestMove> {
+  const rival = AI_RIVALS[level];
+  if (Math.random() < rival.blunderRate) {
+    return pickHumanishMove(fen);
+  }
+  try {
+    return await askEngineMove(fen, rival.searchMs, signal);
+  } catch {
+    return pickHumanishMove(fen);
+  }
 }
 
 export function uciToMove(uci: string): {

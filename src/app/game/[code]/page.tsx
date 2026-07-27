@@ -19,6 +19,7 @@ type Snapshot = {
   result: string | null;
   whiteClockMs?: number;
   blackClockMs?: number;
+  timeControlMs?: number;
   drawOfferBy?: string | null;
   takebackOfferBy?: string | null;
 };
@@ -342,6 +343,7 @@ function GamePageInner() {
         remoteResult={remoteResult}
         whiteClockMs={whiteClockMs}
         blackClockMs={blackClockMs}
+        timeControlMs={snap.timeControlMs}
         onRematch={isSpectator ? undefined : () => void rematch()}
         onResign={isSpectator ? undefined : () => void resign()}
         onAction={isSpectator ? undefined : (a) => onAction(a)}

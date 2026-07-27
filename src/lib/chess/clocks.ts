@@ -9,6 +9,11 @@ export function formatClock(ms: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export function formatClockOrUnlimited(ms: number, unlimited: boolean) {
+  if (unlimited) return "∞";
+  return formatClock(ms);
+}
+
 type Anchor = {
   at: number;
   white: number;

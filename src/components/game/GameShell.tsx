@@ -6,10 +6,10 @@ import { GameOverOverlay } from "@/components/game/GameOverOverlay";
 import { WaitingRoom } from "@/components/game/WaitingRoom";
 import { useAmbient } from "@/lib/chess/ambient";
 import { AI_ELO, rivalLine } from "@/lib/chess/banter";
-import { formatClock, useClocks } from "@/lib/chess/clocks";
+import { formatClockOrUnlimited, useClocks } from "@/lib/chess/clocks";
 import {
   AI_RIVALS,
-  askEngineMove,
+  askAiMove,
   uciToMove,
   type AiLevel,
 } from "@/lib/chess/engine";
@@ -44,6 +44,7 @@ import {
 } from "react";
 
 const AI_CLOCK_MS = 600_000;
+const REPLAY_KEY = "atelier.replayPgn";
 const FILES = "abcdefgh";
 
 type GameShellProps =
@@ -52,6 +53,8 @@ type GameShellProps =
       level: AiLevel;
       playerColor?: "w" | "b";
       playerName: string;
+      /** 0 = unlimited */
+      clockMs?: number;
     }
   | {
       mode: "human";
@@ -64,6 +67,8 @@ type GameShellProps =
       spectator?: boolean;
       drawOfferBy?: string | null;
       takebackOfferBy?: string | null;
+      /** 0 = unlimited */
+      timeControlMs?: number;
       onLocalMove?: (uci: string, san: string, fen: string) => Promise<{
         whiteClockMs?: number;
         blackClockMs?: number;
@@ -170,12 +175,25 @@ export function GameShell(props: GameShellProps) {
   const drawOfferBy = props.mode === "human" ? props.drawOfferBy : null;
   const takebackOfferBy = props.mode === "human" ? props.takebackOfferBy : null;
 
-  const [baseWhiteMs, setBaseWhiteMs] = useState(
-    props.mode === "human" ? (props.whiteClockMs ?? AI_CLOCK_MS) : AI_CLOCK_MS,
-  );
-  const [baseBlackMs, setBaseBlackMs] = useState(
-    props.mode === "human" ? (props.blackClockMs ?? AI_CLOCK_MS) : AI_CLOCK_MS,
-  );
+  const [baseWhiteMs, setBaseWhiteMs] = useState(() => {
+    if (props.mode === "human") {
+      if ((props.timeControlMs ?? 1) === 0) return 0;
+      return props.whiteClockMs ?? AI_CLOCK_MS;
+    }
+    return props.clockMs ?? AI_CLOCK_MS;
+  });
+  const [baseBlackMs, setBaseBlackMs] = useState(() => {
+    if (props.mode === "human") {
+      if ((props.timeControlMs ?? 1) === 0) return 0;
+      return props.blackClockMs ?? AI_CLOCK_MS;
+    }
+    return props.clockMs ?? AI_CLOCK_MS;
+  });
+
+  const unlimited =
+    (props.mode === "human" && (props.timeControlMs ?? 1) === 0) ||
+    (props.mode === "ai" && (props.clockMs ?? AI_CLOCK_MS) === 0) ||
+    baseWhiteMs === 0;
 
   useEffect(() => {
     if (started.current) return;
@@ -233,6 +251,23 @@ export function GameShell(props: GameShellProps) {
         const line = rivalLine(aiLevel, "end");
         if (line) setBanter(line);
       }
+      void fetch("/api/auth/elo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          result,
+          opponent: aiLevel ?? "human",
+        }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.user?.elo != null) {
+            setEloNote(`Elo → ${data.user.elo}`);
+          }
+        })
+        .catch(() => {
+          // guest play keeps local elo only
+        });
     },
     [props, aiLevel],
   );
@@ -340,6 +375,7 @@ export function GameShell(props: GameShellProps) {
   );
 
   const clocksEnabled =
+    !unlimited &&
     !spectator &&
     ((props.mode === "ai" && !gameOver) ||
       (props.mode === "human" && humanStatus === "active" && !gameOver));
@@ -415,11 +451,7 @@ export function GameShell(props: GameShellProps) {
     engineAbort.current = ac;
 
     try {
-      const { uci } = await askEngineMove(
-        live.fen(),
-        AI_RIVALS[aiLevel].searchMs,
-        ac.signal,
-      );
+      const { uci } = await askAiMove(aiLevel, live.fen(), ac.signal);
       const parts = uciToMove(uci);
       let move;
       try {
@@ -603,8 +635,8 @@ export function GameShell(props: GameShellProps) {
     setShowOver(false);
     setEloNote("");
     scored.current = false;
-    setBaseWhiteMs(AI_CLOCK_MS);
-    setBaseBlackMs(AI_CLOCK_MS);
+    setBaseWhiteMs(props.mode === "ai" ? (props.clockMs ?? AI_CLOCK_MS) : AI_CLOCK_MS);
+    setBaseBlackMs(props.mode === "ai" ? (props.clockMs ?? AI_CLOCK_MS) : AI_CLOCK_MS);
     playSound("start");
   };
 
@@ -675,8 +707,12 @@ export function GameShell(props: GameShellProps) {
   };
 
   const analyze = () => {
-    const encoded = encodeURIComponent(pgn || fen);
-    router.push(`/analyze?pgn=${encoded}`);
+    try {
+      sessionStorage.setItem(REPLAY_KEY, pgn || fen);
+    } catch {
+      // ignore quota
+    }
+    router.push("/analyze");
   };
 
   const title =
@@ -788,7 +824,7 @@ export function GameShell(props: GameShellProps) {
           <span
             className={`clock ${topActive ? "active" : ""} ${topClock < 30_000 ? "low" : ""}`}
           >
-            {formatClock(topClock)}
+            {formatClockOrUnlimited(topClock, unlimited)}
           </span>
         </div>
 
@@ -811,7 +847,7 @@ export function GameShell(props: GameShellProps) {
           <span
             className={`clock ${bottomActive ? "active" : ""} ${bottomClock < 30_000 ? "low" : ""}`}
           >
-            {formatClock(bottomClock)}
+            {formatClockOrUnlimited(bottomClock, unlimited)}
           </span>
         </div>
 

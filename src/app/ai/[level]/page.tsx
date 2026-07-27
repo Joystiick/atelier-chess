@@ -1,12 +1,19 @@
 "use client";
 
+import { UserChip } from "@/components/auth/AuthProvider";
 import { GameShell } from "@/components/game/GameShell";
 import type { AiLevel } from "@/lib/chess/engine";
 import { AI_RIVALS } from "@/lib/chess/engine";
-import { getCachedDisplayName, sanitizeDisplayName } from "@/lib/names";
+import {
+  TIME_CONTROLS,
+  getCachedDisplayName,
+  getPreferredTimeControl,
+  sanitizeDisplayName,
+  type TimeControlId,
+} from "@/lib/names";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 function initialName() {
   if (typeof window === "undefined") return "Wanderer";
@@ -18,6 +25,12 @@ export default function AiPage() {
   const level = (params.level as AiLevel) ?? "medium";
   const valid = level in AI_RIVALS;
   const [name] = useState(initialName);
+  const [tcId, setTcId] = useState<TimeControlId>(() => {
+    if (typeof window === "undefined") return "∞";
+    return getPreferredTimeControl();
+  });
+
+  const clockMs = useMemo(() => TIME_CONTROLS[tcId]?.baseMs ?? 0, [tcId]);
 
   if (!valid) {
     return (
@@ -30,15 +43,27 @@ export default function AiPage() {
 
   return (
     <main className="min-h-screen pb-10">
-      <div className="flex items-center justify-between px-4 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
         <Link href="/play" className="text-sm text-[var(--mist)] hover:text-[var(--brass)]">
           ← Lobby
         </Link>
-        <span className="font-[family-name:var(--font-display)] text-[var(--brass)]">
-          Atelier
-        </span>
+        <div className="flex items-center gap-2">
+          <select
+            className="chip bg-transparent"
+            value={tcId}
+            onChange={(e) => setTcId(e.target.value as TimeControlId)}
+            aria-label="Time control"
+          >
+            {(Object.keys(TIME_CONTROLS) as TimeControlId[]).map((id) => (
+              <option key={id} value={id}>
+                {TIME_CONTROLS[id].label}
+              </option>
+            ))}
+          </select>
+          <UserChip />
+        </div>
       </div>
-      <GameShell mode="ai" level={level} playerName={name} />
+      <GameShell mode="ai" level={level} playerName={name} clockMs={clockMs} key={`${level}-${tcId}`} />
     </main>
   );
 }

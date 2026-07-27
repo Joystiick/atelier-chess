@@ -1,3 +1,4 @@
+import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Fraunces, Outfit } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import { RegisterSW } from "@/components/ui/RegisterSW";
@@ -16,7 +17,7 @@ const sans = Outfit({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://atelier-chess-5585.netlify.app",
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://atelierchess.netlify.app",
   ),
   title: "Atelier Chess",
   description: "Two-player chess with room codes, or play against AI.",
@@ -46,7 +47,9 @@ export default function RootLayout({
       <body className="min-h-full font-[family-name:var(--font-sans)] antialiased">
         <StarfieldBackground />
         <RegisterSW />
-        <div className="app-shell">{children}</div>
+        <AuthProvider>
+          <div className="app-shell">{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );

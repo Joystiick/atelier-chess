@@ -8,12 +8,13 @@ export type BoardTheme =
 
 export type AmbientMode = "off" | "rain" | "room" | "hall";
 
-export type TimeControlId = "3|2" | "5|0" | "10|0" | "15|10";
+export type TimeControlId = "∞" | "3|2" | "5|0" | "10|0" | "15|10";
 
 export const TIME_CONTROLS: Record<
   TimeControlId,
   { label: string; baseMs: number; incMs: number }
 > = {
+  "∞": { label: "Unlimited", baseMs: 0, incMs: 0 },
   "3|2": { label: "3+2 Blitz", baseMs: 180_000, incMs: 2_000 },
   "5|0": { label: "5+0 Blitz", baseMs: 300_000, incMs: 0 },
   "10|0": { label: "10+0 Rapid", baseMs: 600_000, incMs: 0 },

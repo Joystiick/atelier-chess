@@ -5,7 +5,9 @@ import { detectOpening } from "@/lib/chess/openings";
 import { Chess, type Square } from "chess.js";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+
+const REPLAY_KEY = "atelier.replayPgn";
 
 function piecesFromFen(fen: string): BoardPiece[] {
   const chess = new Chess(fen);
@@ -16,46 +18,97 @@ function piecesFromFen(fen: string): BoardPiece[] {
   );
 }
 
+function decodeMaybe(raw: string) {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** Load a game from PGN, move list, or FEN into a list of positions. */
+function buildReplay(rawInput: string): { fens: string[]; sans: string[] } {
+  const start = new Chess().fen();
+  if (!rawInput.trim()) return { fens: [start], sans: [] };
+
+  const raw = decodeMaybe(rawInput).trim();
+
+  // FEN only
+  if (raw.includes("/") && !/\d+\./.test(raw) && raw.split(/\s+/).length >= 4) {
+    try {
+      const c = new Chess(raw);
+      return { fens: [c.fen()], sans: [] };
+    } catch {
+      // fall through
+    }
+  }
+
+  try {
+    const chess = new Chess();
+    chess.loadPgn(raw);
+    const verbose = chess.history({ verbose: true });
+    const sans = chess.history();
+    const replay = new Chess();
+    const fens = [replay.fen()];
+    for (const m of verbose) {
+      replay.move({
+        from: m.from,
+        to: m.to,
+        promotion: m.promotion,
+      });
+      fens.push(replay.fen());
+    }
+    if (fens.length > 1) return { fens, sans };
+  } catch {
+    // fall through
+  }
+
+  // Bare SAN tokens
+  try {
+    const tokens = raw
+      .replace(/\d+\.(\.\.)?/g, " ")
+      .replace(/[{}][^}]*/g, " ")
+      .split(/\s+/)
+      .filter((t) => t && !["*", "1-0", "0-1", "1/2-1/2"].includes(t));
+    const replay = new Chess();
+    const fens = [replay.fen()];
+    const sans: string[] = [];
+    for (const san of tokens) {
+      const moved = replay.move(san);
+      if (!moved) break;
+      sans.push(moved.san);
+      fens.push(replay.fen());
+    }
+    if (sans.length > 0) return { fens, sans };
+  } catch {
+    // ignore
+  }
+
+  return { fens: [start], sans: [] };
+}
+
 function AnalyzeInner() {
   const search = useSearchParams();
-  const raw = search.get("pgn") ?? "";
+  const [raw, setRaw] = useState("");
 
-  const fens = useMemo(() => {
-    const chess = new Chess();
-    const list = [chess.fen()];
-    if (raw) {
-      try {
-        if (raw.includes("/")) {
-          chess.load(decodeURIComponent(raw));
-          return [chess.fen()];
-        }
-        chess.loadPgn(decodeURIComponent(raw));
-        const verbose = chess.history({ verbose: true });
-        const replay = new Chess();
-        const out = [replay.fen()];
-        for (const m of verbose) {
-          replay.move(m);
-          out.push(replay.fen());
-        }
-        return out;
-      } catch {
-        return list;
-      }
-    }
-    return list;
-  }, [raw]);
-
-  const sans = useMemo(() => {
+  useEffect(() => {
+    const fromQuery = search.get("pgn") ?? "";
+    let fromStore = "";
     try {
-      const c = new Chess();
-      if (raw && !raw.includes("/")) c.loadPgn(decodeURIComponent(raw));
-      return c.history();
+      fromStore = sessionStorage.getItem(REPLAY_KEY) ?? "";
     } catch {
-      return [] as string[];
+      fromStore = "";
     }
-  }, [raw]);
+    setRaw(fromStore || fromQuery);
+  }, [search]);
 
-  const [ply, setPly] = useState(() => Math.max(0, fens.length - 1));
+  const { fens, sans } = useMemo(() => buildReplay(raw), [raw]);
+  const [ply, setPly] = useState(0);
+
+  useEffect(() => {
+    setPly(Math.max(0, fens.length - 1));
+  }, [fens]);
+
   const fen = fens[Math.min(ply, fens.length - 1)] ?? fens[0]!;
   const pieces = useMemo(() => piecesFromFen(fen), [fen]);
   const opening = detectOpening(sans.slice(0, ply));
@@ -63,28 +116,51 @@ function AnalyzeInner() {
   const lastMove = useMemo(() => {
     if (ply <= 0) return null;
     try {
-      const c = new Chess(fens[ply - 1]);
-      const moves = c.moves({ verbose: true });
-      // find move that leads to fen
-      for (const m of moves) {
-        const t = new Chess(fens[ply - 1]);
-        t.move(m);
-        if (t.fen() === fen) {
-          return { from: m.from as Square, to: m.to as Square };
-        }
-      }
+      const prev = fens[ply - 1]!;
+      const c = new Chess(prev);
+      const san = sans[ply - 1];
+      if (!san) return null;
+      const m = c.move(san);
+      if (!m) return null;
+      return { from: m.from as Square, to: m.to as Square };
     } catch {
       return null;
     }
-    return null;
-  }, [ply, fens, fen]);
+  }, [ply, fens, sans]);
+
+  if (!raw) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center gap-4 px-4 py-10">
+        <Link href="/play" className="self-start text-sm text-[var(--mist)] hover:text-[var(--brass)]">
+          ← Lobby
+        </Link>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl">Analyze</h1>
+        <p className="text-[var(--mist)]">
+          No game loaded. Finish a game and tap Analyze, or paste a PGN below.
+        </p>
+        <textarea
+          className="field min-h-32 w-full font-mono text-xs"
+          placeholder="Paste PGN here…"
+          onChange={(e) => {
+            const v = e.target.value;
+            setRaw(v);
+            try {
+              sessionStorage.setItem(REPLAY_KEY, v);
+            } catch {
+              // ignore
+            }
+          }}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center gap-4 px-4 py-10">
       <Link href="/play" className="self-start text-sm text-[var(--mist)] hover:text-[var(--brass)]">
         ← Lobby
       </Link>
-      <h1 className="font-[family-name:var(--font-display)] text-3xl">Analyze</h1>
+      <h1 className="font-[family-name:var(--font-display)] text-3xl">Replay</h1>
       {opening && <p className="text-[var(--brass)]">{opening}</p>}
       <ChessBoard pieces={pieces} lastMove={lastMove} interactive={false} showArrow />
       <div className="flex gap-2">
@@ -97,7 +173,7 @@ function AnalyzeInner() {
           ←
         </button>
         <span className="chip">
-          {ply}/{fens.length - 1}
+          {ply}/{Math.max(0, fens.length - 1)}
         </span>
         <button
           type="button"
@@ -116,14 +192,15 @@ function AnalyzeInner() {
               className={i + 1 === ply ? "text-[var(--cream)]" : ""}
               onClick={() => setPly(i + 1)}
             >
-              {Math.floor(i / 2) + 1}{i % 2 === 0 ? "." : "..."} {s}
+              {Math.floor(i / 2) + 1}
+              {i % 2 === 0 ? "." : "..."} {s}
             </button>
           </li>
         ))}
       </ol>
-      <p className="text-xs text-[var(--mist)]">
-        Local replay — no engine eval in this build.
-      </p>
+      {sans.length === 0 && (
+        <p className="text-sm text-red-300">Could not parse this game for replay.</p>
+      )}
     </main>
   );
 }

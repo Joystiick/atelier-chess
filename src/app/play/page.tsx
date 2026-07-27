@@ -1,5 +1,6 @@
 "use client";
 
+import { UserChip } from "@/components/auth/AuthProvider";
 import { AI_RIVALS, type AiLevel } from "@/lib/chess/engine";
 import { playSound } from "@/lib/chess/sound";
 import {
@@ -111,9 +112,12 @@ function PlayPageInner() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-4 py-10">
-      <Link href="/" className="mb-8 text-sm text-[var(--mist)] hover:text-[var(--brass)]">
-        ← Atelier
-      </Link>
+      <div className="mb-8 flex items-center justify-between">
+        <Link href="/" className="text-sm text-[var(--mist)] hover:text-[var(--brass)]">
+          ← Atelier
+        </Link>
+        <UserChip />
+      </div>
 
       {step === "name" && (
         <section className="space-y-4">
