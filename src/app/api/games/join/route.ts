@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/requireUser";
+import { verifyPassword } from "@/lib/auth/session";
 import { isValidCode } from "@/lib/codes";
 import { generatePlayerToken } from "@/lib/codes";
 import { db } from "@/lib/db";
@@ -23,8 +24,11 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as {
     code?: string;
+    ticket?: string;
+    password?: string;
   };
   const code = (body.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
+  const ticket = (body.ticket ?? "").trim() || null;
   if (!isValidCode(code)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
@@ -93,6 +97,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Table is full" }, { status: 409 });
   }
 
+  // One-time ticket (QR) — password salon tables may bypass with correct password
+  if (game.joinTicket) {
+    const ticketOk = ticket && ticket === game.joinTicket;
+    let passwordOk = false;
+    if (!ticketOk && body.password && game.passwordHash) {
+      passwordOk = await verifyPassword(body.password, game.passwordHash);
+    }
+    if (!ticketOk && !passwordOk) {
+      return NextResponse.json(
+        { error: "Need a fresh QR ticket (or salon password) to sit" },
+        { status: 403 },
+      );
+    }
+  } else if (game.passwordHash) {
+    if (!body.password || !(await verifyPassword(body.password, game.passwordHash))) {
+      return NextResponse.json({ error: "Wrong salon password" }, { status: 403 });
+    }
+  }
+
   const token = generatePlayerToken();
   const [updated] = await db
     .update(games)
@@ -101,6 +124,7 @@ export async function POST(request: Request) {
       blackToken: token,
       blackUserId: me.id,
       status: "active",
+      joinTicket: null,
       updatedAt: new Date(),
     })
     .where(eq(games.id, game.id))

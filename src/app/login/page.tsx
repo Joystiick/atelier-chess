@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingStatus } from "@/components/ui/LoadingStatus";
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -36,12 +37,15 @@ function LoginInner() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
-      <Link href="/" className="mb-6 text-sm text-[var(--mist)] hover:text-[var(--brass)]">
-        ← Atelier
+      <Link
+        href="/"
+        className="mb-8 font-[family-name:var(--font-display)] text-2xl text-[var(--brass)] hover:text-[var(--cream)]"
+      >
+        Atelier Chess
       </Link>
-      <h1 className="font-[family-name:var(--font-display)] text-4xl">Sign in</h1>
-      <p className="mt-2 text-sm text-[var(--mist)]">An account is required to play.</p>
-      <div className="mt-6 space-y-3">
+      <div className="panel space-y-4 p-6">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl">Sign in</h1>
+        <p className="text-sm text-[var(--mist)]">An account is required to play.</p>
         <input
           className="field"
           placeholder="Email or username"
@@ -91,13 +95,7 @@ function LoginInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-          Loading…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingStatus message="Opening the salon…" />}>
       <LoginInner />
     </Suspense>
   );

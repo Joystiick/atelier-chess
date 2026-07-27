@@ -110,6 +110,8 @@ type GameShellProps =
       timeControlMs?: number;
       correspondence?: boolean;
       rated?: boolean;
+      joinTicket?: string | null;
+      blindfoldCafe?: boolean;
       onLocalMove?: (uci: string, san: string, fen: string) => Promise<{
         whiteClockMs?: number;
         blackClockMs?: number;
@@ -119,6 +121,7 @@ type GameShellProps =
       whiteClockMs?: number;
       blackClockMs?: number;
       onRematch?: () => void;
+      onGhostRematch?: () => Promise<{ code: string; joinTicket: string } | null>;
       onResign?: () => void;
       onAction?: (
         action:
@@ -221,7 +224,17 @@ export function GameShell(props: GameShellProps) {
   const [confirmOn, setConfirmOn] = useState(false);
   const [premoveOn, setPremoveOn] = useState(false);
   const [coachOn, setCoachOn] = useState(false);
-  const [blindfoldOn, setBlindfoldOn] = useState(false);
+  const [blindfoldOn, setBlindfoldOn] = useState(
+    props.mode === "human" && Boolean(props.blindfoldCafe),
+  );
+  const [ghostRematch, setGhostRematch] = useState<{
+    code: string;
+    joinTicket: string;
+  } | null>(null);
+  const [joinTicket, setJoinTicket] = useState(
+    props.mode === "human" ? (props.joinTicket ?? "") : "",
+  );
+  const [tableSettingsOpen, setTableSettingsOpen] = useState(false);
   const [pieceSet, setPieceSetState] = useState<PieceSetId>("classic");
   const [moodId, setMoodId] = useState<MoodId | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(
@@ -252,7 +265,9 @@ export function GameShell(props: GameShellProps) {
     setConfirmOn(getConfirmMove());
     setPremoveOn(getPremoveEnabled());
     setCoachOn(getCoachMode());
-    setBlindfoldOn(getBlindfold());
+    if (!(props.mode === "human" && props.blindfoldCafe)) {
+      setBlindfoldOn(getBlindfold());
+    }
     setPieceSetState(getPieceSet());
     const mood = getMood();
     setMoodId(mood);
@@ -1073,7 +1088,12 @@ export function GameShell(props: GameShellProps) {
   return (
     <div className="game-layout relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start lg:gap-10">
       {props.mode === "human" && humanStatus === "waiting" && !spectator && (
-        <WaitingRoom code={props.code} hostName={props.playerName} />
+        <WaitingRoom
+          code={props.code}
+          hostName={props.playerName}
+          joinTicket={joinTicket || props.joinTicket}
+          onTicketChange={setJoinTicket}
+        />
       )}
 
       {showOver && (
@@ -1087,13 +1107,31 @@ export function GameShell(props: GameShellProps) {
           pgn={pgn}
           eloNote={eloNote || `Local Elo ${getElo()}`}
           primaryLabel={
-            spectator ? "Lobby" : props.mode === "ai" ? "Play again" : "Rematch"
+            spectator
+              ? "Lobby"
+              : props.mode === "ai"
+                ? "Play again"
+                : ghostRematch
+                  ? "Open rematch table"
+                  : "Rematch"
           }
           onPrimary={() => {
             if (spectator) router.push("/play");
             else if (props.mode === "ai") resetAi();
+            else if (ghostRematch) router.push(`/game/${ghostRematch.code}`);
             else props.onRematch?.();
           }}
+          onGhostRematch={
+            props.mode === "human" && !spectator && props.onGhostRematch
+              ? () => {
+                  void (async () => {
+                    const g = await props.onGhostRematch?.();
+                    if (g) setGhostRematch(g);
+                  })();
+                }
+              : undefined
+          }
+          ghostRematch={ghostRematch}
           onAnalyze={analyze}
           onShare={() => void shareGame()}
           secondaryLabel={spectator ? undefined : "Lobby"}
@@ -1140,8 +1178,8 @@ export function GameShell(props: GameShellProps) {
       )}
 
       <div className="flex flex-1 flex-col items-center gap-3">
-        <div className="flex w-full max-w-[min(92vw,560px)] items-center justify-between gap-3">
-          <span className="truncate text-sm text-[var(--mist)]">{topName}</span>
+        <div className={`player-bar ${topActive ? "active-side" : ""}`}>
+          <span className="player-name">{topName}</span>
           <span
             className={`clock ${topActive ? "active" : ""} ${topClock < 30_000 ? "low" : ""}`}
           >
@@ -1175,8 +1213,8 @@ export function GameShell(props: GameShellProps) {
           />
         </div>
 
-        <div className="flex w-full max-w-[min(92vw,560px)] items-center justify-between gap-3">
-          <span className="truncate text-sm text-[var(--mist)]">{bottomName}</span>
+        <div className={`player-bar ${bottomActive ? "active-side" : ""}`}>
+          <span className="player-name">{bottomName}</span>
           <span
             className={`clock ${bottomActive ? "active" : ""} ${bottomClock < 30_000 ? "low" : ""}`}
           >
@@ -1270,7 +1308,7 @@ export function GameShell(props: GameShellProps) {
         )}
 
         {(statusText || banter || opening) && !showOver && (
-          <p className="rounded-full bg-[var(--panel)] px-4 py-2 text-center text-[var(--cream)] ring-1 ring-[var(--brass-dim)]">
+          <p className="status-line">
             {banter || statusText || opening}
           </p>
         )}
@@ -1322,105 +1360,6 @@ export function GameShell(props: GameShellProps) {
         </div>
 
         <div className="panel flex flex-wrap gap-2">
-          <button type="button" className="chip touch-target" onClick={cycleTheme}>
-            {BOARD_THEMES[theme].label}
-          </button>
-          <button
-            type="button"
-            className="chip touch-target"
-            onClick={() => {
-              const next = !soundOn;
-              setSoundOn(next);
-              setSoundEnabled(next);
-            }}
-          >
-            Sound {soundOn ? "On" : "Off"}
-          </button>
-          <button type="button" className="chip touch-target" onClick={cycleAmbient}>
-            Ambient {ambient}
-          </button>
-          <button
-            type="button"
-            className="chip touch-target"
-            onClick={() => {
-              if (getLampAuto()) {
-                setVignette(lampForHour().vignette);
-              } else {
-                setVignette((v) => !v);
-              }
-            }}
-          >
-            Lamp {vignette ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            className="chip touch-target"
-            onClick={() => setShowArrow((a) => !a)}
-          >
-            Arrow {showArrow ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            className="chip touch-target"
-            onClick={() => setFlipped((f) => !f)}
-          >
-            Flip
-          </button>
-          <button
-            type="button"
-            className={`chip touch-target ${confirmOn ? "ring-1 ring-[var(--brass)]" : ""}`}
-            onClick={() => {
-              const next = !confirmOn;
-              setConfirmOn(next);
-              setConfirmMove(next);
-              setPendingConfirm(null);
-            }}
-          >
-            Confirm {confirmOn ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            className={`chip touch-target ${premoveOn ? "ring-1 ring-[var(--brass)]" : ""}`}
-            onClick={() => {
-              const next = !premoveOn;
-              setPremoveOn(next);
-              setPremoveEnabled(next);
-              if (!next) setPremove(null);
-            }}
-          >
-            Premoves {premoveOn ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            className={`chip touch-target ${coachOn ? "ring-1 ring-[var(--brass)]" : ""}`}
-            onClick={() => {
-              const next = !coachOn;
-              setCoachOn(next);
-              setCoachMode(next);
-            }}
-          >
-            Coach {coachOn ? "On" : "Off"}
-          </button>
-          <button
-            type="button"
-            className={`chip touch-target ${blindfoldOn ? "ring-1 ring-[var(--brass)]" : ""}`}
-            onClick={() => {
-              const next = !blindfoldOn;
-              setBlindfoldOn(next);
-              setBlindfold(next);
-            }}
-          >
-            Blindfold {blindfoldOn ? "On" : "Off"}
-          </button>
-          <button type="button" className="chip touch-target" onClick={cyclePieceSet}>
-            Pieces {PIECE_SETS[pieceSet].label}
-          </button>
-          <button type="button" className="chip touch-target" onClick={cycleMood}>
-            Mood {moodId ? MOOD_PACKS[moodId].label : "Salon"}
-          </button>
-          <button type="button" className="chip touch-target" onClick={() => void copyPgn()}>
-            Copy PGN
-          </button>
           {!spectator && (
             <button type="button" className="chip touch-target" onClick={resignLocal}>
               Resign
@@ -1453,6 +1392,13 @@ export function GameShell(props: GameShellProps) {
               )}
             </>
           )}
+          <button
+            type="button"
+            className="chip touch-target"
+            onClick={() => setFlipped((f) => !f)}
+          >
+            Flip
+          </button>
           {props.mode === "ai" && (
             <>
               <button type="button" className="chip touch-target" onClick={undoAi}>
@@ -1466,6 +1412,120 @@ export function GameShell(props: GameShellProps) {
           <Link href="/play" className="chip touch-target inline-flex items-center">
             Lobby
           </Link>
+        </div>
+
+        <div className="panel space-y-2">
+          <button
+            type="button"
+            className="btn-ghost w-full text-left"
+            onClick={() => setTableSettingsOpen((v) => !v)}
+          >
+            {tableSettingsOpen ? "Hide table settings" : "Table settings"}
+          </button>
+          {tableSettingsOpen && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="chip touch-target" onClick={cycleTheme}>
+                {BOARD_THEMES[theme].label}
+              </button>
+              <button
+                type="button"
+                className="chip touch-target"
+                onClick={() => {
+                  const next = !soundOn;
+                  setSoundOn(next);
+                  setSoundEnabled(next);
+                }}
+              >
+                Sound {soundOn ? "On" : "Off"}
+              </button>
+              <button type="button" className="chip touch-target" onClick={cycleAmbient}>
+                Ambient {ambient}
+              </button>
+              <button
+                type="button"
+                className="chip touch-target"
+                onClick={() => {
+                  if (getLampAuto()) {
+                    setVignette(lampForHour().vignette);
+                  } else {
+                    setVignette((v) => !v);
+                  }
+                }}
+              >
+                Lamp {vignette ? "On" : "Off"}
+              </button>
+              <button
+                type="button"
+                className="chip touch-target"
+                onClick={() => setShowArrow((a) => !a)}
+              >
+                Arrow {showArrow ? "On" : "Off"}
+              </button>
+              <button
+                type="button"
+                className={`chip touch-target ${confirmOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+                onClick={() => {
+                  const next = !confirmOn;
+                  setConfirmOn(next);
+                  setConfirmMove(next);
+                  setPendingConfirm(null);
+                }}
+              >
+                Confirm {confirmOn ? "On" : "Off"}
+              </button>
+              <button
+                type="button"
+                className={`chip touch-target ${premoveOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+                onClick={() => {
+                  const next = !premoveOn;
+                  setPremoveOn(next);
+                  setPremoveEnabled(next);
+                  if (!next) setPremove(null);
+                }}
+              >
+                Premoves {premoveOn ? "On" : "Off"}
+              </button>
+              <button
+                type="button"
+                className={`chip touch-target ${coachOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+                onClick={() => {
+                  const next = !coachOn;
+                  setCoachOn(next);
+                  setCoachMode(next);
+                }}
+              >
+                Coach {coachOn ? "On" : "Off"}
+              </button>
+              <button
+                type="button"
+                className={`chip touch-target ${blindfoldOn ? "ring-1 ring-[var(--brass)]" : ""}`}
+                onClick={() => {
+                  const next = !blindfoldOn;
+                  setBlindfoldOn(next);
+                  setBlindfold(next);
+                }}
+              >
+                Blindfold {blindfoldOn ? "On" : "Off"}
+              </button>
+              <button type="button" className="chip touch-target" onClick={cyclePieceSet}>
+                Pieces {PIECE_SETS[pieceSet].label}
+              </button>
+              <button type="button" className="chip touch-target" onClick={cycleMood}>
+                Mood {moodId ? MOOD_PACKS[moodId].label : "Salon"}
+              </button>
+              <button type="button" className="chip touch-target" onClick={() => void copyPgn()}>
+                Copy PGN
+              </button>
+              {props.mode === "human" && (
+                <Link
+                  href={`/watch/${props.code}`}
+                  className="chip touch-target inline-flex items-center"
+                >
+                  Watch party
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {props.mode === "human" && !spectator && (

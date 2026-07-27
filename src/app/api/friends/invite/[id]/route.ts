@@ -67,6 +67,7 @@ export async function POST(request: Request, { params }: Params) {
       blackToken: token,
       blackUserId: me.id,
       status: "active",
+      joinTicket: null,
       updatedAt: new Date(),
     })
     .where(eq(games.id, game.id))

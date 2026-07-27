@@ -22,6 +22,8 @@ type Snapshot = {
   timeControlMs?: number;
   drawOfferBy?: string | null;
   takebackOfferBy?: string | null;
+  joinTicket?: string | null;
+  blindfoldCafe?: boolean;
 };
 
 function GamePageInner() {
@@ -214,6 +216,23 @@ function GamePageInner() {
     router.push(`/game/${data.code}`);
   };
 
+  const ghostRematch = async () => {
+    const res = await fetch(`/api/games/${code}/rematch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ghost: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ?? "Ghost rematch failed");
+      return null;
+    }
+    return {
+      code: data.code as string,
+      joinTicket: data.joinTicket as string,
+    };
+  };
+
   const onAction = async (
     action:
       | "offer-draw"
@@ -345,8 +364,11 @@ function GamePageInner() {
         blackClockMs={blackClockMs}
         timeControlMs={snap.timeControlMs}
         onRematch={isSpectator ? undefined : () => void rematch()}
+        onGhostRematch={isSpectator ? undefined : ghostRematch}
         onResign={isSpectator ? undefined : () => void resign()}
         onAction={isSpectator ? undefined : (a) => onAction(a)}
+        joinTicket={snap.joinTicket}
+        blindfoldCafe={snap.blindfoldCafe}
       />
     </main>
   );

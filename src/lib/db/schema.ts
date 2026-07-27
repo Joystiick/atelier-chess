@@ -49,6 +49,12 @@ export const games = pgTable(
     clubId: uuid("club_id"),
     arenaId: uuid("arena_id"),
     banterLog: text("banter_log").notNull().default(""),
+    /** One-time seat claim for QR join */
+    joinTicket: text("join_ticket"),
+    handoffWhite: text("handoff_white"),
+    handoffBlack: text("handoff_black"),
+    blindfoldCafe: boolean("blindfold_cafe").notNull().default(false),
+    salonNightId: uuid("salon_night_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -325,6 +331,53 @@ export const puzzleSets = pgTable("puzzle_sets", {
     .references(() => users.id, { onDelete: "cascade" }),
   puzzleIds: text("puzzle_ids").notNull().default(""),
   sharedWith: text("shared_with").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const salonNightStatusEnum = pgEnum("salon_night_status", [
+  "open",
+  "closed",
+]);
+
+export const salonNights = pgTable(
+  "salon_nights",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    hostId: uuid("host_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: salonNightStatusEnum("status").notNull().default("open"),
+    timeControl: text("time_control").notNull().default("10|0"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("salon_nights_slug_idx").on(table.slug)],
+);
+
+export const salonQueue = pgTable("salon_queue", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nightId: uuid("night_id")
+    .notNull()
+    .references(() => salonNights.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("waiting"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const kioskSessions = pgTable("kiosk_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  token: text("token").notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  matchedCode: text("matched_code"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

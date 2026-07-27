@@ -1,4 +1,9 @@
-import { generateGameCode, generatePlayerToken, isValidCode } from "@/lib/codes";
+import {
+  generateGameCode,
+  generateJoinTicket,
+  generatePlayerToken,
+  isValidCode,
+} from "@/lib/codes";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
 import { gameChannel, getPusher } from "@/lib/pusher/server";
@@ -8,13 +13,17 @@ import { NextResponse } from "next/server";
 
 type Params = { params: Promise<{ code: string }> };
 
-/** Create a fresh table with the same two players (seats swapped). */
-export async function POST(_request: Request, { params }: Params) {
+/**
+ * Rematch: live (both online via Pusher) or ghost (waiting QR for opponent who left).
+ */
+export async function POST(request: Request, { params }: Params) {
   const { code: raw } = await params;
   const code = raw.replace(/\D/g, "").padStart(8, "0").slice(-8);
   if (!isValidCode(code)) {
     return NextResponse.json({ error: "Invalid code" }, { status: 400 });
   }
+
+  const body = (await request.json().catch(() => ({}))) as { ghost?: boolean };
 
   const [game] = await db.select().from(games).where(eq(games.code, code)).limit(1);
   if (!game) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -34,13 +43,58 @@ export async function POST(_request: Request, { params }: Params) {
     (color === "b" && token === game.blackToken);
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Ghost rematch: open waiting table with one-time ticket for the other device/player
+  if (body.ghost) {
+    const myToken = generatePlayerToken();
+    const joinTicket = generateJoinTicket();
+    let newCode = generateGameCode();
+
+    for (let i = 0; i < 5; i++) {
+      try {
+        const [row] = await db
+          .insert(games)
+          .values({
+            code: newCode,
+            status: "waiting",
+            whiteName: color === "w" ? game.whiteName : game.blackName,
+            whiteToken: myToken,
+            whiteUserId: color === "w" ? game.whiteUserId : game.blackUserId,
+            whiteClockMs: game.timeControlMs,
+            blackClockMs: game.timeControlMs,
+            timeControlMs: game.timeControlMs,
+            incrementMs: game.incrementMs,
+            rated: game.rated,
+            blindfoldCafe: game.blindfoldCafe,
+            joinTicket,
+          })
+          .returning();
+
+        jar.set(`atelier_seat_${newCode}`, `w:${myToken}`, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24,
+        });
+
+        return NextResponse.json({
+          code: row.code,
+          color: "w" as const,
+          ghost: true,
+          joinTicket,
+        });
+      } catch {
+        newCode = generateGameCode();
+      }
+    }
+    return NextResponse.json({ error: "Could not rematch" }, { status: 500 });
+  }
+
   const whiteToken = generatePlayerToken();
   const blackToken = generatePlayerToken();
   let newCode = generateGameCode();
 
   for (let i = 0; i < 5; i++) {
     try {
-      // Swap colors for rematch
       const [row] = await db
         .insert(games)
         .values({
@@ -50,13 +104,18 @@ export async function POST(_request: Request, { params }: Params) {
           blackName: game.whiteName,
           whiteToken,
           blackToken,
-          whiteClockMs: 600_000,
-          blackClockMs: 600_000,
+          whiteUserId: game.blackUserId,
+          blackUserId: game.whiteUserId,
+          whiteClockMs: game.timeControlMs,
+          blackClockMs: game.timeControlMs,
+          timeControlMs: game.timeControlMs,
+          incrementMs: game.incrementMs,
+          rated: game.rated,
+          blindfoldCafe: game.blindfoldCafe,
+          joinTicket: null,
         })
         .returning();
 
-      // Caller gets the seat matching who they were after swap:
-      // old white -> new black, old black -> new white
       const newColor = color === "w" ? "b" : "w";
       const newToken = newColor === "w" ? whiteToken : blackToken;
       jar.set(`atelier_seat_${newCode}`, `${newColor}:${newToken}`, {
@@ -70,7 +129,6 @@ export async function POST(_request: Request, { params }: Params) {
         await getPusher().trigger(gameChannel(code), "rematch.ready", {
           newCode: row.code,
           claim: { w: whiteToken, b: blackToken },
-          // After swap: previous white is now black
           mapping: { w: "b", b: "w" } as const,
         });
       } catch {
@@ -81,7 +139,8 @@ export async function POST(_request: Request, { params }: Params) {
         code: row.code,
         color: newColor,
         claim: { w: whiteToken, b: blackToken },
-      });    } catch {
+      });
+    } catch {
       newCode = generateGameCode();
     }
   }

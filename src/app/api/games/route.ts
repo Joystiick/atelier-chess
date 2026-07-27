@@ -1,7 +1,11 @@
 import { requireUser } from "@/lib/auth/requireUser";
 import { hashPassword } from "@/lib/auth/session";
 import { rateLimit, clientKey } from "@/lib/rateLimit";
-import { generateGameCode, generatePlayerToken } from "@/lib/codes";
+import {
+  generateGameCode,
+  generateJoinTicket,
+  generatePlayerToken,
+} from "@/lib/codes";
 import { db } from "@/lib/db";
 import { friendships, gameInvites, games } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
@@ -50,6 +54,8 @@ export async function POST(request: Request) {
     maxSpectators?: number;
     revealNames?: boolean;
     clubId?: string;
+    blindfoldCafe?: boolean;
+    salonNightId?: string;
   };
   const tcId =
     body.timeControl && body.timeControl in TIME_CONTROLS
@@ -75,6 +81,7 @@ export async function POST(request: Request) {
     200,
   );
 
+  const joinTicket = generateJoinTicket();
   let code = generateGameCode();
   for (let i = 0; i < 5; i++) {
     try {
@@ -96,6 +103,9 @@ export async function POST(request: Request) {
           maxSpectators,
           revealNames: body.revealNames !== false,
           clubId: body.clubId || null,
+          joinTicket,
+          blindfoldCafe: Boolean(body.blindfoldCafe),
+          salonNightId: body.salonNightId || null,
         })
         .returning();
 
@@ -145,6 +155,8 @@ export async function POST(request: Request) {
         invited: Boolean(inviteFriendId),
         rated: row.rated,
         correspondence: row.correspondence,
+        joinTicket: row.joinTicket,
+        blindfoldCafe: row.blindfoldCafe,
       });
     } catch {
       code = generateGameCode();

@@ -1,6 +1,7 @@
 "use client";
 
 import { UserChip, useAuth } from "@/components/auth/AuthProvider";
+import { LoadingStatus } from "@/components/ui/LoadingStatus";
 import { useFriendsFeed, type FriendUser } from "@/hooks/useFriendsFeed";
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
@@ -18,11 +19,7 @@ export default function FriendsPage() {
   const [busy, setBusy] = useState(false);
 
   if (authLoading) {
-    return (
-      <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-        Loading…
-      </main>
-    );
+    return <LoadingStatus message="Checking account…" />;
   }
   if (!user) {
     router.replace("/login?next=/friends");
@@ -256,7 +253,26 @@ export default function FriendsPage() {
           Your friends {loading ? "" : `(${friends.length})`}
         </h2>
         {friends.length === 0 && !loading && (
-          <p className="text-sm text-[var(--mist)]">No friends yet — search above.</p>
+          <div className="panel space-y-3 text-center">
+            <p className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
+              Your circle is empty
+            </p>
+            <p className="text-sm text-[var(--mist)]">
+              Search a username above to send a friend request — then challenge them to a table.
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                const el = document.querySelector<HTMLInputElement>(
+                  'input[placeholder="Username"]',
+                );
+                el?.focus();
+              }}
+            >
+              Search a username
+            </button>
+          </div>
         )}
         {friends.map((f) => (
           <div

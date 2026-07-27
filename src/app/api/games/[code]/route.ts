@@ -50,6 +50,9 @@ export async function GET(_request: Request, { params }: Params) {
     incrementMs: game.incrementMs,
     drawOfferBy: game.drawOfferBy,
     takebackOfferBy: game.takebackOfferBy,
+    blindfoldCafe: game.blindfoldCafe,
+    /** Host-only — one-time QR seat ticket while waiting */
+    joinTicket: you === "w" && game.status === "waiting" ? game.joinTicket : null,
     you,
     spectator: you === null,
     moves: moveRows.map((m) => ({

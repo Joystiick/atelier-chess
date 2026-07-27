@@ -1,6 +1,7 @@
 "use client";
 
 import { UserChip, useAuth } from "@/components/auth/AuthProvider";
+import { LoadingStatus } from "@/components/ui/LoadingStatus";
 import { useFriendsFeed } from "@/hooks/useFriendsFeed";
 import { AI_RIVALS, type AiLevel } from "@/lib/chess/engine";
 import { playSound } from "@/lib/chess/sound";
@@ -35,6 +36,8 @@ function PlayPageInner() {
   const [correspondence, setCorrespondence] = useState(false);
   const [salonPassword, setSalonPassword] = useState("");
   const [revealNames, setRevealNames] = useState(true);
+  const [showMore, setShowMore] = useState(false);
+  const [blindfoldCafe, setBlindfoldCafe] = useState(false);
   const autoJoinTried = useRef(false);
 
   useEffect(() => {
@@ -44,11 +47,12 @@ function PlayPageInner() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.replace(`/login?next=${encodeURIComponent("/play" + (joinParam ? `?join=${joinParam}` : ""))}`);
+      router.replace(
+        `/login?next=${encodeURIComponent("/play" + (joinParam ? `?join=${joinParam}` : ""))}`,
+      );
     }
   }, [authLoading, user, router, joinParam]);
 
-  // Seamless: /play?join=CODE after login → sit immediately
   useEffect(() => {
     if (authLoading || !user || joinParam.length !== 8 || autoJoinTried.current) return;
     autoJoinTried.current = true;
@@ -90,6 +94,7 @@ function PlayPageInner() {
           correspondence,
           password: salonPassword.trim() || undefined,
           revealNames,
+          blindfoldCafe,
         }),
       });
       const data = await res.json();
@@ -110,7 +115,10 @@ function PlayPageInner() {
       const res = await fetch("/api/games/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: joinCode.replace(/\D/g, "") }),
+        body: JSON.stringify({
+          code: joinCode.replace(/\D/g, ""),
+          password: salonPassword.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -140,11 +148,27 @@ function PlayPageInner() {
 
   if (authLoading || !user || (joinParam.length === 8 && busy && !error)) {
     return (
-      <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-        {joinParam.length === 8 ? "Joining table…" : "Checking account…"}
-      </main>
+      <LoadingStatus
+        message={joinParam.length === 8 ? "Claiming your seat…" : "Checking account…"}
+      />
     );
   }
+
+  const salonTools: { href: string; title: string; blurb: string }[] = [
+    {
+      href: "/friends",
+      title: "Friends",
+      blurb: `${friends.length} friend${friends.length === 1 ? "" : "s"}`,
+    },
+    { href: "/arena", title: "Arena", blurb: "Timed events" },
+    { href: "/clubs", title: "Clubs", blurb: "Salons & club tables" },
+    { href: "/train", title: "Train", blurb: "Openings & coach" },
+    { href: "/history", title: "History", blurb: "Archives" },
+    { href: "/correspondence", title: "Correspondence", blurb: "Slow games" },
+    { href: "/study", title: "Study", blurb: "Shared boards" },
+    { href: "/puzzle", title: "Puzzles", blurb: "Daily & rush" },
+    { href: "/settings", title: "Settings", blurb: "Sound, coach, mood" },
+  ];
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-4 py-10">
@@ -182,7 +206,7 @@ function PlayPageInner() {
       {step === "modes" && (
         <section className="space-y-3">
           <h1 className="font-[family-name:var(--font-display)] text-4xl">
-            Choose a mode
+            Choose a table
           </h1>
           <p className="mb-2 text-[var(--mist)]">
             {user.username} · Elo {user.elo}
@@ -196,7 +220,7 @@ function PlayPageInner() {
             }}
           >
             <h3>Human</h3>
-            <p>Create a table, join a code, or invite a friend.</p>
+            <p>Create a table, scan QR, or invite a friend.</p>
           </button>
           <button
             type="button"
@@ -220,105 +244,32 @@ function PlayPageInner() {
             <h3>Ranked</h3>
             <p>Queue for a rated match.</p>
           </button>
+
           <button
             type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/arena");
-            }}
+            className="btn-ghost w-full"
+            onClick={() => setShowMore((v) => !v)}
           >
-            <h3>Arena</h3>
-            <p>Timed arena events.</p>
+            {showMore ? "Hide salon tools" : "Salon tools"}
           </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/clubs");
-            }}
-          >
-            <h3>Clubs</h3>
-            <p>Salons and club tables.</p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/friends");
-            }}
-          >
-            <h3>Friends</h3>
-            <p>
-              {friends.length} friend{friends.length === 1 ? "" : "s"}
-              {invites.length ? ` · ${invites.length} invite${invites.length > 1 ? "s" : ""}` : ""}
-            </p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/train");
-            }}
-          >
-            <h3>Train</h3>
-            <p>Openings, coach, blunders, puzzle sets.</p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/history");
-            }}
-          >
-            <h3>History</h3>
-            <p>Archived games and analysis.</p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/correspondence");
-            }}
-          >
-            <h3>Correspondence</h3>
-            <p>Slow games and your move inbox.</p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/study");
-            }}
-          >
-            <h3>Study</h3>
-            <p>Shared boards and annotations.</p>
-          </button>
-          <button
-            type="button"
-            className="mode-card"
-            onClick={() => {
-              playSound("click");
-              router.push("/puzzle");
-            }}
-          >
-            <h3>Puzzles</h3>
-            <p>Daily puzzle or rush.</p>
-          </button>
-          <Link
-            href="/settings"
-            className="mode-card block"
-            onClick={() => playSound("click")}
-          >
-            <h3>Settings</h3>
-            <p>Sound, coach, blindfold, mood packs.</p>
-          </Link>
+          {showMore && (
+            <div className="grid grid-cols-2 gap-2">
+              {salonTools.map((t) => (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className="rounded-lg bg-[var(--panel)] px-3 py-2.5 ring-1 ring-[var(--brass-dim)] transition hover:ring-[var(--brass)]"
+                  onClick={() => playSound("click")}
+                >
+                  <p className="font-[family-name:var(--font-display)] text-[var(--cream)]">
+                    {t.title}
+                  </p>
+                  <p className="text-xs text-[var(--mist)]">{t.blurb}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+
           {recent.length > 0 && (
             <div className="panel mt-2">
               <h2 className="panel-title">Recent tables</h2>
@@ -349,44 +300,51 @@ function PlayPageInner() {
       {step === "human" && (
         <section className="space-y-4">
           <h1 className="font-[family-name:var(--font-display)] text-3xl">Human</h1>
-          <label className="block text-sm text-[var(--mist)]">
-            Time control
-            <select
-              className="field mt-1"
-              value={timeControl}
-              onChange={(e) => setTimeControl(e.target.value as TimeControlId)}
-            >
+          <div>
+            <p className="mb-2 text-sm text-[var(--mist)]">Time control</p>
+            <div className="flex flex-wrap gap-2">
               {(Object.keys(TIME_CONTROLS) as TimeControlId[]).map((id) => (
-                <option key={id} value={id}>
+                <button
+                  key={id}
+                  type="button"
+                  className={`chip touch-target ${timeControl === id ? "ring-1 ring-[var(--brass)]" : ""}`}
+                  onClick={() => setTimeControl(id)}
+                >
                   {TIME_CONTROLS[id].label}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
-            <input
-              type="checkbox"
-              checked={rated}
-              onChange={(e) => setRated(e.target.checked)}
-            />
-            Rated
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
-            <input
-              type="checkbox"
-              checked={correspondence}
-              onChange={(e) => setCorrespondence(e.target.checked)}
-            />
-            Correspondence
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[var(--mist)]">
-            <input
-              type="checkbox"
-              checked={revealNames}
-              onChange={(e) => setRevealNames(e.target.checked)}
-            />
-            Reveal names
-          </label>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={`chip touch-target ${rated ? "ring-1 ring-[var(--brass)]" : ""}`}
+              onClick={() => setRated((v) => !v)}
+            >
+              Rated {rated ? "On" : "Off"}
+            </button>
+            <button
+              type="button"
+              className={`chip touch-target ${correspondence ? "ring-1 ring-[var(--brass)]" : ""}`}
+              onClick={() => setCorrespondence((v) => !v)}
+            >
+              Correspondence {correspondence ? "On" : "Off"}
+            </button>
+            <button
+              type="button"
+              className={`chip touch-target ${revealNames ? "ring-1 ring-[var(--brass)]" : ""}`}
+              onClick={() => setRevealNames((v) => !v)}
+            >
+              Names {revealNames ? "On" : "Off"}
+            </button>
+            <button
+              type="button"
+              className={`chip touch-target ${blindfoldCafe ? "ring-1 ring-[var(--brass)]" : ""}`}
+              onClick={() => setBlindfoldCafe((v) => !v)}
+            >
+              Blindfold café {blindfoldCafe ? "On" : "Off"}
+            </button>
+          </div>
           <label className="block text-sm text-[var(--mist)]">
             Salon password (optional)
             <input
@@ -439,7 +397,7 @@ function PlayPageInner() {
           </button>
           {code.length === 8 && (
             <Link
-              href={`/game/${code}?spectate=1`}
+              href={`/watch/${code}`}
               className="block text-center text-sm text-[var(--brass)]"
             >
               Spectate this table
@@ -525,13 +483,7 @@ function PlayPageInner() {
 
 export default function PlayPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-          Loading…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingStatus message="Opening the lobby…" />}>
       <PlayPageInner />
     </Suspense>
   );

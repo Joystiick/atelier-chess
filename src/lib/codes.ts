@@ -9,6 +9,11 @@ export function generatePlayerToken(): string {
   return randomBytes(24).toString("hex");
 }
 
+/** Short one-time ticket for QR seat claims */
+export function generateJoinTicket(): string {
+  return randomBytes(8).toString("hex");
+}
+
 export function isValidCode(code: string): boolean {
   return /^\d{8}$/.test(code);
 }

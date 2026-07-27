@@ -18,6 +18,11 @@ import { NextResponse, type NextRequest } from "next/server";
   "/correspondence",
   "/settings",
   "/puzzles",
+  "/salon",
+  "/kiosk",
+  "/challenge",
+  "/handoff",
+  "/seat",
 ];
 
 function secretKey() {
@@ -85,5 +90,15 @@ export const config = {
     "/settings/:path*",
     "/puzzles",
     "/puzzles/:path*",
+    "/salon",
+    "/salon/:path*",
+    "/kiosk",
+    "/kiosk/:path*",
+    "/challenge",
+    "/challenge/:path*",
+    "/handoff",
+    "/handoff/:path*",
+    "/seat",
+    "/seat/:path*",
   ],
 };

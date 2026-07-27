@@ -77,6 +77,12 @@ export default function ProfilePage() {
           <p className="text-sm text-[var(--mist)]">
             {user.gamesPlayed} games · {user.email}
           </p>
+          <Link
+            href={`/challenge/${encodeURIComponent(user.username)}`}
+            className="mt-2 inline-block text-sm text-[var(--brass)]"
+          >
+            Challenge card →
+          </Link>
         </div>
       </div>
 
