@@ -1,17 +1,17 @@
 {
   "version": "0.1.0",
-  "releasedAt": "2026-07-28T00:00:00.000Z",
-  "notes": "First desktop beta — Windows x64 NSIS and macOS universal DMG. Cloud multiplayer stays online.",
+  "releasedAt": "2026-07-28T02:34:38.595Z",
+  "notes": "Desktop client 0.1.0",
   "windows": {
     "x64": {
-      "url": "",
-      "sha256": null
+      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.0/AtelierChess-Setup-0.1.0-x64.exe",
+      "sha256": "86694ed94bcbec606e48b2713955685aa3dbfca9470bee34498eb0acbea934ef"
     }
   },
   "mac": {
     "universal": {
-      "url": "",
-      "sha256": null
+      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.0/AtelierChess-0.1.0-mac.dmg",
+      "sha256": "af8f466625cb81a77e0653f40aaa688dc07f2e1827be79b6bd7915a4d54ff499"
     }
   }
 }
