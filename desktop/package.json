@@ -1,6 +1,6 @@
 {
   "name": "atelier-chess-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Atelier Chess native desktop client (Electron shell over cloud multiplayer)",
   "author": "Atelier Chess",

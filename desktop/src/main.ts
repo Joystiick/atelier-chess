@@ -141,15 +141,41 @@ async function stampDesktopCookie(): Promise<void> {
     return;
   }
   const ses = session.fromPartition(PARTITION);
-  await ses.cookies.set({
-    url: `${parsed.protocol}//${parsed.host}`,
-    name: "atelier_desktop",
-    value: "1",
-    path: "/",
-    secure: parsed.protocol === "https:",
-    httpOnly: false,
-    sameSite: "lax",
-    expirationDate: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 400,
+  const url = `${parsed.protocol}//${parsed.host}/`;
+  try {
+    await ses.cookies.set({
+      url,
+      name: "atelier_desktop",
+      value: "1",
+      path: "/",
+      secure: parsed.protocol === "https:",
+      httpOnly: false,
+      sameSite: parsed.protocol === "https:" ? "no_restriction" : "lax",
+      expirationDate: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 400,
+    });
+  } catch (err) {
+    console.warn("[desktop] cookie stamp failed", err);
+  }
+}
+
+/** Mark every cloud request as coming from the desktop shell (middleware + APIs). */
+function installDesktopRequestHeaders(): void {
+  const ses = session.fromPartition(PARTITION);
+  ses.webRequest.onBeforeSendHeaders((details, callback) => {
+    const headers = { ...details.requestHeaders };
+    try {
+      const host = new URL(details.url).hostname;
+      if (
+        host === "atelierchess.netlify.app" ||
+        host === "localhost" ||
+        host === "127.0.0.1"
+      ) {
+        headers["X-Atelier-Desktop"] = "1";
+      }
+    } catch {
+      /* ignore bad urls */
+    }
+    callback({ requestHeaders: headers });
   });
 }
 
@@ -176,6 +202,12 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  // Ensure UA is detectable even if Chromium omits "Electron/"
+  const ua = win.webContents.getUserAgent();
+  if (!/Electron\//i.test(ua) && !/AtelierDesktop\//i.test(ua)) {
+    win.webContents.setUserAgent(`${ua} AtelierDesktop/${app.getVersion()}`);
+  }
+
   win.once("ready-to-show", () => {
     win.show();
   });
@@ -194,6 +226,24 @@ function createWindow(): BrowserWindow {
       event.preventDefault();
       openExternalSafe(url);
     }
+  });
+
+  win.webContents.on("did-finish-load", () => {
+    void stampDesktopCookie();
+  });
+
+  // Catch renderer crashes instead of silent quit
+  win.webContents.on("render-process-gone", (_event, details) => {
+    console.error("[desktop] renderer gone", details);
+    void dialog.showMessageBox({
+      type: "error",
+      title: "Atelier Chess",
+      message: "The window crashed and will reload.",
+      detail: details.reason,
+    });
+    void stampDesktopCookie().then(() => {
+      if (!win.isDestroyed()) void win.loadURL(resolveAppUrl());
+    });
   });
 
   let start = resolveAppUrl();
@@ -414,7 +464,8 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     registerProtocol();
-    void session.fromPartition(PARTITION);
+    installDesktopRequestHeaders();
+    void stampDesktopCookie();
     buildMenu();
     setupAutoUpdater();
     mainWindow = createWindow();

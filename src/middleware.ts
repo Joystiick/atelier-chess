@@ -58,9 +58,10 @@ function matchesPrefix(pathname: string, prefixes: string[]) {
 }
 
 function isDesktopClient(request: NextRequest) {
+  if (request.headers.get("x-atelier-desktop") === "1") return true;
   if (request.cookies.get("atelier_desktop")?.value === "1") return true;
   const ua = request.headers.get("user-agent") ?? "";
-  return /\bElectron\//i.test(ua);
+  return /\bElectron\//i.test(ua) || /\bAtelierDesktop\//i.test(ua);
 }
 
 function secretKey() {

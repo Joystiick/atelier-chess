@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadingStatus } from "@/components/ui/LoadingStatus";
+import { useDesktopClient } from "@/hooks/useDesktopClient";
 import { AVATARS, type AvatarId } from "@/lib/auth/avatars";
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
@@ -9,7 +10,11 @@ import { Suspense, useState } from "react";
 
 function RegisterInner() {
   const search = useSearchParams();
-  const next = search.get("next") || "/download";
+  const { isDesktop, ready } = useDesktopClient();
+  const nextParam = search.get("next");
+  const next =
+    nextParam ||
+    (ready ? (isDesktop ? "/play" : "/download") : "/play");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,12 +33,24 @@ function RegisterInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
-      playSound("start");
-      const dest = next.startsWith("/") ? next : "/download";
-      window.location.href = dest;
+      try {
+        playSound("start");
+      } catch {
+        // audio optional
+      }
+      const dest = next.startsWith("/")
+        ? next
+        : isDesktop
+          ? "/play"
+          : "/download";
+      // Prefer Play in the desktop shell even if next was /download
+      const finalDest =
+        isDesktop && (dest === "/download" || dest === "/")
+          ? "/play"
+          : dest;
+      window.location.assign(finalDest);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not register");
-    } finally {
       setBusy(false);
     }
   };
@@ -49,7 +66,9 @@ function RegisterInner() {
       <div className="panel space-y-4 p-6">
         <h1 className="font-[family-name:var(--font-display)] text-3xl">Create account</h1>
         <p className="text-sm text-[var(--mist)]">
-          Required to play — Elo, friends, and invites.
+          {isDesktop
+            ? "Create an account to open the lobby."
+            : "Required to play — Elo, friends, and invites."}
         </p>
         <input
           className="field"

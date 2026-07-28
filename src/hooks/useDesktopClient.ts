@@ -16,6 +16,13 @@ function readBridge(): AtelierDesktopBridge | null {
   return bridge;
 }
 
+/** UA fallback when preload bridge is late or missing. */
+function isDesktopUserAgent(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent ?? "";
+  return /\bElectron\//i.test(ua) || /\bAtelierDesktop\//i.test(ua);
+}
+
 export function useDesktopClient(): DesktopClientState {
   const [state, setState] = useState<DesktopClientState>({
     isDesktop: false,
@@ -27,7 +34,7 @@ export function useDesktopClient(): DesktopClientState {
     const apply = () => {
       const bridge = readBridge();
       setState({
-        isDesktop: Boolean(bridge),
+        isDesktop: Boolean(bridge) || isDesktopUserAgent(),
         bridge,
         ready: true,
       });

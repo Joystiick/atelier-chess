@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadingStatus } from "@/components/ui/LoadingStatus";
+import { useDesktopClient } from "@/hooks/useDesktopClient";
 import { playSound } from "@/lib/chess/sound";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,7 +9,11 @@ import { Suspense, useState } from "react";
 
 function LoginInner() {
   const search = useSearchParams();
-  const next = search.get("next") || "/download";
+  const { isDesktop, ready } = useDesktopClient();
+  const nextParam = search.get("next");
+  const next =
+    nextParam ||
+    (ready ? (isDesktop ? "/play" : "/download") : "/play");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,12 +30,24 @@ function LoginInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
-      playSound("click");
-      const dest = next.startsWith("/") ? next : "/download";
-      window.location.href = dest;
+      try {
+        playSound("click");
+      } catch {
+        // audio optional
+      }
+      const dest = next.startsWith("/")
+        ? next
+        : isDesktop
+          ? "/play"
+          : "/download";
+      // Prefer Play in the desktop shell even if next was /download
+      const finalDest =
+        isDesktop && (dest === "/download" || dest === "/")
+          ? "/play"
+          : dest;
+      window.location.assign(finalDest);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not sign in");
-    } finally {
       setBusy(false);
     }
   };
@@ -45,7 +62,11 @@ function LoginInner() {
       </Link>
       <div className="panel space-y-4 p-6">
         <h1 className="font-[family-name:var(--font-display)] text-3xl">Sign in</h1>
-        <p className="text-sm text-[var(--mist)]">An account is required to play.</p>
+        <p className="text-sm text-[var(--mist)]">
+          {isDesktop
+            ? "Sign in to open the lobby."
+            : "Accounts work on the web — play in the desktop app."}
+        </p>
         <input
           className="field"
           placeholder="Email or username"
