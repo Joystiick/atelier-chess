@@ -1,17 +1,17 @@
 {
-  "version": "0.1.0",
-  "releasedAt": "2026-07-28T02:34:38.595Z",
-  "notes": "Desktop client 0.1.0",
+  "version": "0.1.1",
+  "releasedAt": "2026-07-28T03:06:31.244Z",
+  "notes": "Desktop client 0.1.1",
   "windows": {
     "x64": {
-      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.0/AtelierChess-Setup-0.1.0-x64.exe",
-      "sha256": "86694ed94bcbec606e48b2713955685aa3dbfca9470bee34498eb0acbea934ef"
+      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.1/AtelierChess-Setup-0.1.1-x64.exe",
+      "sha256": "ac0e2fe7db0e2f334b503e6b47c0842bee3d15d113661e7a5b62ca81342f51ec"
     }
   },
   "mac": {
     "universal": {
-      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.0/AtelierChess-0.1.0-mac.dmg",
-      "sha256": "af8f466625cb81a77e0653f40aaa688dc07f2e1827be79b6bd7915a4d54ff499"
+      "url": "https://github.com/Joystiick/atelier-chess/releases/download/desktop-v0.1.1/AtelierChess-0.1.1-mac.dmg",
+      "sha256": "9ea95404c6501d1200528844ead05bb348cb7b9526ca088740d12a316f67dce0"
     }
   }
 }
