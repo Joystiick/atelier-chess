@@ -44,8 +44,9 @@ mac:
         - universal
   category: public.app-category.games
   artifactName: AtelierChess-${version}-mac-${arch}.${ext}
-  hardenedRuntime: true
+  hardenedRuntime: false
   gatekeeperAssess: false
+  identity: null
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
 
@@ -55,13 +56,14 @@ dmg:
 linux:
   target: []
 
-# Aligns with GitHub Releases publish used by CI / electron-updater.
-# Owner/repo inferred from package.json repository or GH_TOKEN context.
+# Metadata for electron-updater. CI publishes with `gh release` + `--publish never`
+# so the git tag stays `desktop-v*` (electron-builder would default to v$version).
 publish:
   provider: github
   owner: Joystiick
   repo: atelier-chess
   releaseType: release
+  vPrefixedTagName: false
 
 protocols:
   - name: Atelier Chess

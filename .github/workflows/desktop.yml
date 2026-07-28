@@ -1,20 +1,8 @@
 # Atelier Chess — desktop installers (Electron)
-# Working directory: desktop/  |  Targets: Win x64 NSIS + macOS universal DMG (no Win x86)
+# Win x64 NSIS + macOS universal DMG. No Win x86.
 #
-# Triggers:
-#   - push tags matching desktop-v*  → build, electron-builder --publish always, update latest.json
-#   - workflow_dispatch              → build + upload artifacts only (no release / no latest.json commit)
-#
-# Required for publish (provided by Actions — do not invent or commit values):
-#   GITHUB_TOKEN  — contents:write is enough for GitHub Releases + committing latest.json
-#   (alias: set GH_TOKEN repo secret to a PAT if you need cross-repo or elevated publish)
-#
-# Optional code signing / notarization (leave unset for unsigned beta):
-#   CSC_LINK                  — base64 of .pfx (Windows) or .p12 (macOS)
-#   CSC_KEY_PASSWORD          — certificate password
-#   APPLE_ID                  — Apple ID for notarization
-#   APPLE_APP_SPECIFIC_PASSWORD
-#   APPLE_TEAM_ID
+# Tags: desktop-v* → build → GitHub Release assets → update public/desktop/latest.json
+# workflow_dispatch → build + artifacts only
 #
 name: Desktop Installers
 
@@ -31,10 +19,6 @@ concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  # Prefer optional GH_TOKEN PAT secret; otherwise the job token (needs contents:write).
-  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-
 jobs:
   build:
     name: Build (${{ matrix.os }})
@@ -43,13 +27,20 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            eb_args: --win --x64
             dist_script: dist:win
             artifact_name: desktop-windows-x64
+            artifact_glob: |
+              desktop/release/*.exe
+              desktop/release/*.blockmap
+              desktop/release/*.yml
           - os: macos-latest
-            eb_args: --mac --universal
             dist_script: dist:mac
             artifact_name: desktop-macos-universal
+            artifact_glob: |
+              desktop/release/*.dmg
+              desktop/release/*.zip
+              desktop/release/*.blockmap
+              desktop/release/*.yml
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -84,46 +75,92 @@ jobs:
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           echo "DESKTOP_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      # Unsigned builds are OK when signing secrets are unset (electron-builder skips).
-      - name: Build installers (no publish)
-        if: ${{ !startsWith(github.ref, 'refs/tags/desktop-v') }}
+      # Do NOT pass empty CSC_* secrets — electron-builder treats "" as a cert path.
+      # Unsigned beta: force skip identity discovery.
+      - name: Build installers (unsigned / publish never)
         env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run ${{ matrix.dist_script }}
-
-      - name: Build and publish to GitHub Releases
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          npm run build
-          npx electron-builder ${{ matrix.eb_args }} --publish always
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            desktop/release/*.exe
-            desktop/release/*.dmg
-            desktop/release/*.zip
-            desktop/release/*.yml
-            desktop/release/*.blockmap
-            desktop/release/*.json
+          path: ${{ matrix.artifact_glob }}
           if-no-files-found: error
           retention-days: 14
 
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-x64
+          path: desktop/release
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-macos-universal
+          path: desktop/release
+
+      - name: Create or update release and upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          TAG="$GITHUB_REF_NAME"
+          WIN="AtelierChess-Setup-${VERSION}-x64.exe"
+          MAC="AtelierChess-${VERSION}-mac.dmg"
+
+          ls -la desktop/release
+
+          if [[ ! -f "desktop/release/$WIN" ]]; then
+            echo "::error::Missing $WIN"
+            exit 1
+          fi
+          if [[ ! -f "desktop/release/$MAC" ]]; then
+            echo "::error::Missing $MAC"
+            # Some builders emit arch in the name — accept universal fallback
+            ALT=$(ls desktop/release/AtelierChess-${VERSION}-mac*.dmg 2>/dev/null | head -n1 || true)
+            if [[ -n "$ALT" ]]; then
+              cp "$ALT" "desktop/release/$MAC"
+            else
+              exit 1
+            fi
+          fi
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG exists — uploading assets"
+            gh release upload "$TAG" \
+              "desktop/release/$WIN" \
+              "desktop/release/$MAC" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" \
+              "desktop/release/$WIN" \
+              "desktop/release/$MAC" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Atelier Chess Desktop ${VERSION}" \
+              --notes "Desktop client ${VERSION} — Windows x64 NSIS and macOS universal DMG. Cloud multiplayer via atelierchess.netlify.app."
+          fi
+
   update-latest:
     name: Update public/desktop/latest.json
-    needs: build
+    needs: release
     if: startsWith(github.ref, 'refs/tags/desktop-v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -133,7 +170,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
-          token: ${{ secrets.GH_TOKEN || github.token }}
+          token: ${{ github.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -142,7 +179,7 @@ jobs:
 
       - name: Download release installers
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -150,28 +187,13 @@ jobs:
           WIN="AtelierChess-Setup-${VERSION}-x64.exe"
           MAC="AtelierChess-${VERSION}-mac.dmg"
           mkdir -p desktop/release
-
-          # Matrix publishes can race; retry until both assets are on the Release.
-          for attempt in $(seq 1 18); do
-            echo "Attempt ${attempt}: listing release ${GITHUB_REF_NAME}"
-            if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-              gh release download "$GITHUB_REF_NAME" \
-                --repo "$GITHUB_REPOSITORY" \
-                --dir desktop/release \
-                --pattern "$WIN" \
-                --pattern "$MAC" \
-                --clobber || true
-              if [[ -f "desktop/release/$WIN" && -f "desktop/release/$MAC" ]]; then
-                ls -la desktop/release
-                exit 0
-              fi
-            fi
-            echo "Waiting for Win NSIS + Mac DMG on release…"
-            sleep 10
-          done
-          echo "::error::Timed out waiting for $WIN and $MAC on release $GITHUB_REF_NAME"
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" || true
-          exit 1
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir desktop/release \
+            --pattern "$WIN" \
+            --pattern "$MAC" \
+            --clobber
+          ls -la desktop/release
 
       - name: Write latest.json
         shell: bash
@@ -194,7 +216,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/desktop/latest.json
           if git diff --staged --quiet; then
-            echo "latest.json already up to date — nothing to commit"
+            echo "latest.json already up to date"
             exit 0
           fi
           git commit -m "chore(desktop): update latest.json for ${GITHUB_REF_NAME}"
