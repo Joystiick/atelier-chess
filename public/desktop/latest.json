@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "releasedAt": "2026-07-28T00:00:00.000Z",
+  "notes": "First desktop beta — Windows x64 NSIS and macOS universal DMG. Cloud multiplayer stays online.",
+  "windows": {
+    "x64": {
+      "url": "",
+      "sha256": null
+    }
+  },
+  "mac": {
+    "universal": {
+      "url": "",
+      "sha256": null
+    }
+  }
+}

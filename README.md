@@ -4,6 +4,8 @@ A quiet table for two — human vs human (8-digit codes) or vs Garbochess-JS AI 
 
 **Stack:** Next.js · Neon Postgres · Pusher Channels · Netlify · [Garbochess-JS](https://github.com/glinscott/Garbochess-JS)
 
+**Native desktop (Electron):** see [`desktop/README.md`](desktop/README.md).
+
 ## Local setup
 
 1. Copy env:
@@ -29,6 +31,10 @@ A quiet table for two — human vs human (8-digit codes) or vs Garbochess-JS AI 
 | `npm run dev` | Next.js local server |
 | `npm run build` | Production build |
 | `npm run db:push` | Apply Drizzle schema to Neon |
+| `npm run desktop:dev` | Typecheck + launch Electron shell (loads Netlify by default) |
+| `npm run desktop:build` | Compile Electron main/preload only |
+| `npm run desktop:dist:win` | Build Windows x64 NSIS installer |
+| `npm run desktop:write-latest` | Fill `public/desktop/latest.json` from release asset names |
 
 ## Deploy (Netlify)
 

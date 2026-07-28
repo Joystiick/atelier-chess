@@ -1,0 +1,35 @@
+{
+  "name": "atelier-chess-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier Chess native desktop client (Electron shell over cloud multiplayer)",
+  "author": "Atelier Chess",
+  "homepage": "https://atelierchess.netlify.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Joystiick/atelier-chess.git"
+  },
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "sync-icon": "node scripts/sync-icon.mjs",
+    "build": "node scripts/sync-icon.mjs && tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --universal --publish never",
+    "write-latest": "node scripts/write-latest-json.mjs",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.30",
+    "electron": "^36.9.5",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

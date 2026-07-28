@@ -9,15 +9,17 @@ export const metadata: Metadata = {
 export default function HowToPage() {
   return (
     <main className="mx-auto max-w-lg px-4 py-12">
-      <Link href="/play" className="text-sm text-[var(--mist)] hover:text-[var(--brass)]">
-        ← Lobby
+      <Link href="/download" className="text-sm text-[var(--mist)] hover:text-[var(--brass)]">
+        ← Download
       </Link>
       <h1 className="mt-6 font-[family-name:var(--font-display)] text-4xl text-[var(--cream)]">
         How to play
       </h1>
       <div className="mt-6 space-y-4 text-[var(--mist)]">
         <p>
-          Atelier is local two-player chess with room codes, plus AI and puzzles.
+          Atelier is a desktop chess client — download for Windows or Mac, then
+          open tables with room codes, friends, AI, and puzzles. Phones can still
+          scan a QR to join or watch.
         </p>
         <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
           Human tables
@@ -44,8 +46,8 @@ export default function HowToPage() {
           Piece art based on Lichess Cburnett SVGs (multi-license). AI uses Garbochess-JS (BSD).
         </p>
       </div>
-      <Link href="/play" className="btn-primary mt-8 inline-block">
-        Play
+      <Link href="/download" className="btn-primary mt-8 inline-block">
+        Download the app
       </Link>
     </main>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useDesktopClient } from "@/hooks/useDesktopClient";
 import { useEffect, useState } from "react";
 
 type BeforeInstallPromptEvent = Event & {
@@ -8,6 +9,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 export function InstallPrompt() {
+  const { isDesktop, ready } = useDesktopClient();
   const [evt, setEvt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -25,7 +27,7 @@ export function InstallPrompt() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (!evt || dismissed) return null;
+  if (!ready || isDesktop || !evt || dismissed) return null;
 
   return (
     <div className="fixed bottom-4 left-1/2 z-50 flex w-[min(92vw,22rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[var(--brass-dim)] bg-[var(--panel)] px-3 py-2.5 shadow-lg backdrop-blur">

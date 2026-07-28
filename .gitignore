@@ -46,4 +46,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# desktop (Electron)
+/desktop/node_modules
+/desktop/dist-electron
+/desktop/release
+*.pfx
+*.p12
+
 tailwindcss-*.log

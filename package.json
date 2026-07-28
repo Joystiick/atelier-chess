@@ -8,7 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "desktop": "npm --prefix desktop start",
+    "desktop:dev": "npm --prefix desktop start",
+    "desktop:build": "npm --prefix desktop run build",
+    "desktop:dist": "npm --prefix desktop run dist",
+    "desktop:dist:win": "npm --prefix desktop run dist:win",
+    "desktop:dist:mac": "npm --prefix desktop run dist:mac",
+    "desktop:write-latest": "node desktop/scripts/write-latest-json.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

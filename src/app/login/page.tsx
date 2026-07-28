@@ -8,7 +8,7 @@ import { Suspense, useState } from "react";
 
 function LoginInner() {
   const search = useSearchParams();
-  const next = search.get("next") || "/play";
+  const next = search.get("next") || "/download";
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -26,7 +26,7 @@ function LoginInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       playSound("click");
-      const dest = next.startsWith("/") ? next : "/play";
+      const dest = next.startsWith("/") ? next : "/download";
       window.location.href = dest;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not sign in");

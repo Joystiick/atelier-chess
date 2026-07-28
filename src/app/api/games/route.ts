@@ -8,6 +8,7 @@ import {
 } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { friendships, gameInvites, games } from "@/lib/db/schema";
+import { isDesktopRequest } from "@/lib/desktop/guard";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
 import { touchPresence } from "@/lib/notify";
 import { getPusher, userChannel } from "@/lib/pusher/server";
@@ -38,6 +39,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Too many tables — wait a moment" },
       { status: 429 },
+    );
+  }
+
+  if (!(await isDesktopRequest(request))) {
+    return NextResponse.json(
+      { error: "Create tables from the Atelier desktop app" },
+      { status: 403 },
     );
   }
 

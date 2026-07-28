@@ -1,7 +1,8 @@
 import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 
-  const PROTECTED_PREFIXES = [
+/** Auth-gated routes (browser QR join paths stay reachable after login). */
+const AUTH_PREFIXES = [
   "/play",
   "/ai",
   "/game",
@@ -17,13 +18,50 @@ import { NextResponse, type NextRequest } from "next/server";
   "/train",
   "/correspondence",
   "/settings",
+  "/puzzle",
   "/puzzles",
   "/salon",
   "/kiosk",
   "/challenge",
   "/handoff",
   "/seat",
+  "/watch",
 ];
+
+/**
+ * Lobby / client surfaces — desktop app only.
+ * Phone QR flows (/join, /game, /watch, /handoff, /seat) stay on the web.
+ */
+const DESKTOP_ONLY_PREFIXES = [
+  "/play",
+  "/ai",
+  "/friends",
+  "/profile",
+  "/analyze",
+  "/ranked",
+  "/arena",
+  "/clubs",
+  "/history",
+  "/study",
+  "/train",
+  "/correspondence",
+  "/settings",
+  "/puzzle",
+  "/puzzles",
+  "/salon",
+  "/kiosk",
+  "/challenge",
+];
+
+function matchesPrefix(pathname: string, prefixes: string[]) {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function isDesktopClient(request: NextRequest) {
+  if (request.cookies.get("atelier_desktop")?.value === "1") return true;
+  const ua = request.headers.get("user-agent") ?? "";
+  return /\bElectron\//i.test(ua);
+}
 
 function secretKey() {
   const raw =
@@ -35,9 +73,14 @@ function secretKey() {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const needsAuth = PROTECTED_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+
+  if (matchesPrefix(pathname, DESKTOP_ONLY_PREFIXES) && !isDesktopClient(request)) {
+    const downloadUrl = new URL("/download", request.url);
+    downloadUrl.searchParams.set("from", pathname);
+    return NextResponse.redirect(downloadUrl);
+  }
+
+  const needsAuth = matchesPrefix(pathname, AUTH_PREFIXES);
   if (!needsAuth) return NextResponse.next();
 
   const token = request.cookies.get("atelier_session")?.value;
@@ -88,6 +131,8 @@ export const config = {
     "/correspondence/:path*",
     "/settings",
     "/settings/:path*",
+    "/puzzle",
+    "/puzzle/:path*",
     "/puzzles",
     "/puzzles/:path*",
     "/salon",
@@ -100,5 +145,7 @@ export const config = {
     "/handoff/:path*",
     "/seat",
     "/seat/:path*",
+    "/watch",
+    "/watch/:path*",
   ],
 };

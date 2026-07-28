@@ -9,7 +9,7 @@ import { Suspense, useState } from "react";
 
 function RegisterInner() {
   const search = useSearchParams();
-  const next = search.get("next") || "/play";
+  const next = search.get("next") || "/download";
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +29,7 @@ function RegisterInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
       playSound("start");
-      const dest = next.startsWith("/") ? next : "/play";
+      const dest = next.startsWith("/") ? next : "/download";
       window.location.href = dest;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not register");

@@ -168,7 +168,9 @@ body {
 }
 
 .hero {
+  position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 2rem 1.25rem 3rem;
@@ -192,12 +194,71 @@ body {
   margin: 0;
 }
 
+.brand-headline {
+  margin: 1.15rem auto 0;
+  max-width: 22rem;
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.25rem, 3.5vw, 1.65rem);
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  color: var(--brass);
+}
+
 .brand-sub {
-  margin: 1rem auto 0;
+  margin: 0.85rem auto 0;
   max-width: 28rem;
   color: var(--mist);
   font-size: 1.05rem;
   line-height: 1.5;
+}
+
+.hero-foot {
+  position: relative;
+  z-index: 1;
+  padding: 1.5rem 1.25rem 2.5rem;
+  text-align: center;
+}
+
+.hero-logo {
+  animation: hero-logo-float 5.5s ease-in-out infinite;
+}
+
+.hero-reveal {
+  animation: hero-reveal 0.75s ease-out both;
+}
+
+.hero-reveal-delay-1 {
+  animation-delay: 0.1s;
+}
+
+.hero-reveal-delay-2 {
+  animation-delay: 0.22s;
+}
+
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+body.desktop-client .hero-foot {
+  opacity: 0.85;
 }
 
 .play-btn-face {
@@ -461,5 +522,13 @@ body {
   .loading-pulse {
     animation: none;
     opacity: 0.85;
+  }
+  .hero-logo,
+  .hero-reveal,
+  .hero-reveal-delay-1,
+  .hero-reveal-delay-2 {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
   }
 }
