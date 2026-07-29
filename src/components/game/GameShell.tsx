@@ -18,6 +18,7 @@ import {
   type AiLevel,
 } from "@/lib/chess/engine";
 import { detectOpening } from "@/lib/chess/openings";
+import { buildCoachWhisper } from "@/lib/chess/coachWhisper";
 import { playSound } from "@/lib/chess/sound";
 import {
   BOARD_THEMES,
@@ -574,6 +575,29 @@ export function GameShell(props: GameShellProps) {
     blackMs: baseBlackMs,
     onFlag,
   });
+
+  const coachWhisper = useMemo(() => {
+    if (!showOver || spectator) return null;
+    const timedOut = /time|flag/i.test(overTitle);
+    return buildCoachWhisper({
+      pgn,
+      whiteMs,
+      blackMs,
+      baseMs: Math.max(baseWhiteMs, baseBlackMs),
+      playerColor,
+      timedOut,
+    });
+  }, [
+    showOver,
+    spectator,
+    overTitle,
+    pgn,
+    whiteMs,
+    blackMs,
+    baseWhiteMs,
+    baseBlackMs,
+    playerColor,
+  ]);
 
   const applyEndStatus = useCallback(
     (chess: Chess) => {
@@ -1147,6 +1171,7 @@ export function GameShell(props: GameShellProps) {
           }
           pgn={pgn}
           eloNote={eloNote || `Local Elo ${getElo()}`}
+          coachWhisper={coachWhisper}
           primaryLabel={
             spectator
               ? "Lobby"

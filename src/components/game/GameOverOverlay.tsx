@@ -3,11 +3,18 @@
 import { InviteQrPanel } from "@/components/game/InviteQrPanel";
 import { type ReactNode, useState } from "react";
 
+type CoachWhisperBullets = {
+  blunder: string;
+  tactic: string;
+  clock: string;
+};
+
 type GameOverOverlayProps = {
   title: string;
   subtitle?: string;
   pgn?: string;
   eloNote?: string;
+  coachWhisper?: CoachWhisperBullets | null;
   onPrimary: () => void;
   primaryLabel: string;
   onSecondary?: () => void;
@@ -26,6 +33,7 @@ export function GameOverOverlay({
   subtitle,
   pgn,
   eloNote,
+  coachWhisper,
   onPrimary,
   primaryLabel,
   onSecondary,
@@ -51,6 +59,26 @@ export function GameOverOverlay({
         </h2>
         {subtitle && <p className="mt-2 text-[var(--mist)]">{subtitle}</p>}
         {eloNote && <p className="mt-1 text-sm text-[var(--brass)]">{eloNote}</p>}
+
+        {coachWhisper && (
+          <section className="mt-4 space-y-2 rounded-lg bg-black/25 px-3 py-3 text-left">
+            <h3 className="panel-title text-[var(--brass)]">Coach whisper</h3>
+            <ul className="space-y-2 text-sm text-[var(--mist)]">
+              <li>
+                <span className="text-[var(--cream)]">Blunder · </span>
+                {coachWhisper.blunder}
+              </li>
+              <li>
+                <span className="text-[var(--cream)]">Missed tactic · </span>
+                {coachWhisper.tactic}
+              </li>
+              <li>
+                <span className="text-[var(--cream)]">Clock · </span>
+                {coachWhisper.clock}
+              </li>
+            </ul>
+          </section>
+        )}
 
         {ghostRematch && (
           <div className="mt-4">
