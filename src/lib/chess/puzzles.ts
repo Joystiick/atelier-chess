@@ -67,9 +67,23 @@ export const BUILTIN_PUZZLES: BuiltInPuzzle[] = [
   },
 ];
 
+/** Local calendar day index so the daily puzzle matches the player's date. */
+export function puzzleDayIndex(date = new Date()): number {
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000,
+  );
+}
+
 export function puzzleOfTheDay(date = new Date()): BuiltInPuzzle {
-  const day = Math.floor(date.getTime() / 86_400_000);
-  return BUILTIN_PUZZLES[day % BUILTIN_PUZZLES.length]!;
+  return BUILTIN_PUZZLES[puzzleDayIndex(date) % BUILTIN_PUZZLES.length]!;
+}
+
+export function formatPuzzleDayLabel(date = new Date()): string {
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function shufflePuzzles(count = 8): BuiltInPuzzle[] {

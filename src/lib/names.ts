@@ -91,6 +91,7 @@ const K = {
   recent: "atelier.recentTables",
   lastOpponent: "atelier.lastOpponent",
   puzzleStreak: "atelier.puzzleStreak",
+  puzzleStreakDay: "atelier.puzzleStreakDay",
   howToSeen: "atelier.howToSeen",
   timeControl: "atelier.timeControl",
 } as const;
@@ -205,12 +206,62 @@ export function setLastOpponent(name: string) {
   ls()?.setItem(K.lastOpponent, name.slice(0, 20));
 }
 
-export function getPuzzleStreak(): number {
+/** Local calendar day key YYYY-MM-DD for daily puzzle streak. */
+export function puzzleCalendarDayKey(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function puzzleYesterdayKey(from = new Date()): string {
+  const d = new Date(from);
+  d.setDate(d.getDate() - 1);
+  return puzzleCalendarDayKey(d);
+}
+
+function rawPuzzleStreak(): number {
   return Number(ls()?.getItem(K.puzzleStreak) ?? "0") || 0;
 }
 
+/** Drop streak when the last solve was before yesterday (missed a calendar day). */
+function syncPuzzleStreakForMiss(): void {
+  const store = ls();
+  if (!store) return;
+  const last = store.getItem(K.puzzleStreakDay) ?? "";
+  if (!last) return;
+  const today = puzzleCalendarDayKey();
+  const yesterday = puzzleYesterdayKey();
+  if (last !== today && last !== yesterday) {
+    store.setItem(K.puzzleStreak, "0");
+  }
+}
+
+export function getPuzzleStreak(): number {
+  syncPuzzleStreakForMiss();
+  return rawPuzzleStreak();
+}
+
 export function setPuzzleStreak(n: number) {
-  ls()?.setItem(K.puzzleStreak, String(n));
+  ls()?.setItem(K.puzzleStreak, String(Math.max(0, Math.floor(n))));
+}
+
+export function isDailyPuzzleSolvedToday(): boolean {
+  return (ls()?.getItem(K.puzzleStreakDay) ?? "") === puzzleCalendarDayKey();
+}
+
+/** Record a daily solve once per calendar day; returns the streak after update. */
+export function recordDailyPuzzleSolved(): number {
+  syncPuzzleStreakForMiss();
+  const store = ls();
+  if (!store) return 0;
+  const today = puzzleCalendarDayKey();
+  const last = store.getItem(K.puzzleStreakDay) ?? "";
+  if (last === today) return rawPuzzleStreak();
+  const next = (last === puzzleYesterdayKey() ? rawPuzzleStreak() : 0) + 1;
+  store.setItem(K.puzzleStreak, String(next));
+  store.setItem(K.puzzleStreakDay, today);
+  return next;
 }
 
 export function hasSeenHowTo(): boolean {

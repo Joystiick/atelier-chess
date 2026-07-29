@@ -1,12 +1,19 @@
 "use client";
 
 import { ChessBoard, type BoardPiece } from "@/components/board/ChessBoard";
-import { puzzleOfTheDay } from "@/lib/chess/puzzles";
+import {
+  formatPuzzleDayLabel,
+  puzzleOfTheDay,
+} from "@/lib/chess/puzzles";
 import { playSound } from "@/lib/chess/sound";
-import { getPuzzleStreak, setPuzzleStreak } from "@/lib/names";
+import {
+  getPuzzleStreak,
+  isDailyPuzzleSolvedToday,
+  recordDailyPuzzleSolved,
+} from "@/lib/names";
 import { Chess, type Square } from "chess.js";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function piecesFromFen(fen: string): BoardPiece[] {
   const chess = new Chess(fen);
@@ -19,11 +26,24 @@ function piecesFromFen(fen: string): BoardPiece[] {
 
 export default function DailyPuzzlePage() {
   const puzzle = useMemo(() => puzzleOfTheDay(), []);
+  const dayLabel = useMemo(() => formatPuzzleDayLabel(), []);
   const [fen, setFen] = useState(puzzle.fen);
   const [selected, setSelected] = useState<Square | null>(null);
   const [step, setStep] = useState(0);
   const [msg, setMsg] = useState("Find the best move");
   const [done, setDone] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [alreadySolved, setAlreadySolved] = useState(false);
+
+  useEffect(() => {
+    setStreak(getPuzzleStreak());
+    const solved = isDailyPuzzleSolvedToday();
+    setAlreadySolved(solved);
+    if (solved) {
+      setDone(true);
+      setMsg("Already solved today — streak holds");
+    }
+  }, []);
 
   const position = useMemo(() => new Chess(fen), [fen]);
   const turn = position.turn();
@@ -34,13 +54,13 @@ export default function DailyPuzzlePage() {
   }, [selected, position]);
 
   const tryUci = (uci: string) => {
+    if (alreadySolved) return;
     const expected = puzzle.solution[step];
     if (!expected) return;
     if (uci !== expected) {
       playSound("check");
       setMsg("Not it — try again");
       setSelected(null);
-      setPuzzleStreak(0);
       return;
     }
     const live = new Chess(fen);
@@ -53,8 +73,10 @@ export default function DailyPuzzlePage() {
     if (next >= puzzle.solution.length) {
       playSound("end");
       setDone(true);
+      const nextStreak = recordDailyPuzzleSolved();
+      setStreak(nextStreak);
+      setAlreadySolved(true);
       setMsg("Solved!");
-      setPuzzleStreak(getPuzzleStreak() + 1);
     } else {
       playSound("move");
       setStep(next);
@@ -87,6 +109,7 @@ export default function DailyPuzzlePage() {
         ← Lobby
       </Link>
       <h1 className="font-[family-name:var(--font-display)] text-3xl">Daily puzzle</h1>
+      <p className="text-sm text-[var(--brass)]">{dayLabel}</p>
       <p className="text-[var(--mist)]">
         {puzzle.title} · ~{puzzle.rating}
       </p>
@@ -98,7 +121,13 @@ export default function DailyPuzzlePage() {
         onSquareClick={onSquareClick}
       />
       <p className="text-[var(--cream)]">{msg}</p>
-      <p className="text-xs text-[var(--mist)]">Streak {getPuzzleStreak()}</p>
+      <p className="text-xs text-[var(--mist)]">
+        Streak {streak}
+        {alreadySolved ? " · done for today" : ""}
+      </p>
+      <p className="max-w-sm text-center text-xs text-[var(--mist)]">
+        One calendar day, one count. Miss a day and the streak resets.
+      </p>
       <Link href="/puzzle/rush" className="text-sm text-[var(--brass)]">
         Puzzle rush →
       </Link>
