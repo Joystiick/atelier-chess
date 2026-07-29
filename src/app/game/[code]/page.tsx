@@ -12,6 +12,9 @@ import { Suspense, startTransition, useCallback, useEffect, useState } from "rea
 const POLL_WITH_PUSHER_MS = 30_000;
 const POLL_FALLBACK_MS = 5_000;
 const POLL_SPECTATOR_MS = 5_000;
+/** LAN party: still cloud-backed, but prefer sparse polls when Pusher is live. */
+const POLL_LAN_WITH_PUSHER_MS = 60_000;
+const POLL_LAN_FALLBACK_MS = 8_000;
 
 type Snapshot = {
   code: string;
@@ -33,6 +36,7 @@ type Snapshot = {
   tablecast?: boolean;
   spectatorCount?: number;
   ghostLeague?: boolean;
+  lanMode?: boolean;
 };
 
 function GamePageInner() {
@@ -54,6 +58,7 @@ function GamePageInner() {
   const [spectatorCount, setSpectatorCount] = useState(0);
   const [phoneController, setPhoneController] = useState(false);
   const [ghostLeague, setGhostLeague] = useState(false);
+  const [lanMode, setLanMode] = useState(false);
 
   const applySnapshot = useCallback((data: Snapshot) => {
     startTransition(() => {
@@ -66,6 +71,7 @@ function GamePageInner() {
       setTakebackOfferBy(data.takebackOfferBy ?? null);
       setTablecast(Boolean(data.tablecast));
       setGhostLeague(Boolean(data.ghostLeague));
+      setLanMode(Boolean(data.lanMode));
       if (typeof data.spectatorCount === "number") {
         setSpectatorCount(data.spectatorCount);
       }
@@ -209,12 +215,12 @@ function GamePageInner() {
         );
         stopPoll = startVisibilityAwareInterval(
           () => void refresh(),
-          POLL_WITH_PUSHER_MS,
+          lanMode ? POLL_LAN_WITH_PUSHER_MS : POLL_WITH_PUSHER_MS,
         );
       } catch {
         stopPoll = startVisibilityAwareInterval(
           () => void refresh(),
-          POLL_FALLBACK_MS,
+          lanMode ? POLL_LAN_FALLBACK_MS : POLL_FALLBACK_MS,
         );
       }
     } else {
@@ -259,12 +265,12 @@ function GamePageInner() {
         );
         stopPoll = startVisibilityAwareInterval(
           () => void refresh(),
-          POLL_WITH_PUSHER_MS,
+          lanMode ? POLL_LAN_WITH_PUSHER_MS : POLL_WITH_PUSHER_MS,
         );
       } catch {
         stopPoll = startVisibilityAwareInterval(
           () => void refresh(),
-          POLL_SPECTATOR_MS,
+          lanMode ? POLL_LAN_FALLBACK_MS : POLL_SPECTATOR_MS,
         );
       }
     }
@@ -280,7 +286,7 @@ function GamePageInner() {
         }
       }
     };
-  }, [code, snap?.you, forceSpectate, applySnapshot, router, snap]);
+  }, [code, snap?.you, forceSpectate, applySnapshot, router, snap, lanMode]);
 
   const onLocalMove = async (uci: string) => {
     const res = await fetch(`/api/games/${code}/move`, {
@@ -475,6 +481,7 @@ function GamePageInner() {
         tablecast={tablecast}
         spectatorCount={spectatorCount}
         ghostLeague={ghostLeague}
+        lanMode={lanMode}
         phoneController={phoneController && tablecast && !isSpectator}
         onTablecastChange={setTablecast}
       />

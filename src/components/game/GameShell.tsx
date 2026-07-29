@@ -120,6 +120,8 @@ type GameShellProps =
       spectatorCount?: number;
       /** Soft seasonal ladder from ghost rematch */
       ghostLeague?: boolean;
+      /** Same-room LAN party badge + sparse polling */
+      lanMode?: boolean;
       onTablecastChange?: (on: boolean) => void;
       /** Compact phone seat UI for Tablecast */
       phoneController?: boolean;
@@ -1153,6 +1155,7 @@ export function GameShell(props: GameShellProps) {
           joinTicket={joinTicket || props.joinTicket}
           onTicketChange={setJoinTicket}
           tablecast={tablecast}
+          lanMode={Boolean(props.lanMode)}
           spectatorCount={spectatorCount}
           onTablecastChange={(on) => {
             setTablecastOn(on);
@@ -1396,6 +1399,7 @@ export function GameShell(props: GameShellProps) {
         )}
         <p className="text-center text-xs text-[var(--brass)]">
           {tablecast ? "Tablecast · " : ""}
+          {props.mode === "human" && props.lanMode ? "LAN · " : ""}
           {title}
           {opening ? ` · ${opening}` : ""}
           {spectator ? " · Spectating" : ""}

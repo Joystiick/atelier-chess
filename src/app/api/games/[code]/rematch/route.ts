@@ -66,6 +66,7 @@ export async function POST(request: Request, { params }: Params) {
             rated: game.rated,
             blindfoldCafe: game.blindfoldCafe,
             tablecast: game.tablecast,
+            lanMode: game.lanMode,
             ghostLeague: true,
             joinTicket,
           })
@@ -85,6 +86,7 @@ export async function POST(request: Request, { params }: Params) {
           ghostLeague: true,
           joinTicket,
           tablecast: row.tablecast,
+          lanMode: row.lanMode,
         });
       } catch {
         newCode = generateGameCode();
@@ -117,6 +119,7 @@ export async function POST(request: Request, { params }: Params) {
           rated: game.rated,
           blindfoldCafe: game.blindfoldCafe,
           tablecast: game.tablecast,
+          lanMode: game.lanMode,
           joinTicket: null,
         })
         .returning();
@@ -151,6 +154,7 @@ export async function POST(request: Request, { params }: Params) {
         color: newColor,
         claim: { w: whiteToken, b: blackToken },
         tablecast: row.tablecast,
+        lanMode: row.lanMode,
       });
     } catch {
       newCode = generateGameCode();

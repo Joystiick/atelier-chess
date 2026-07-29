@@ -14,6 +14,7 @@ type WaitingRoomProps = {
   tablecast?: boolean;
   onTablecastChange?: (on: boolean) => void;
   spectatorCount?: number;
+  lanMode?: boolean;
 };
 
 export function WaitingRoom({
@@ -24,6 +25,7 @@ export function WaitingRoom({
   tablecast: tablecastProp = false,
   onTablecastChange,
   spectatorCount = 0,
+  lanMode = false,
 }: WaitingRoomProps) {
   const [ticket, setTicket] = useState(ticketProp ?? "");
   const [inviteMsg, setInviteMsg] = useState("");
@@ -109,10 +111,18 @@ export function WaitingRoom({
       <div className="overlay-card max-h-[90vh] space-y-4 overflow-y-auto">
         <p className="text-sm uppercase tracking-[0.2em] text-[var(--brass)]">
           {tablecast ? "Tablecast — waiting" : "Waiting for opponent"}
+          {lanMode ? " · LAN" : ""}
         </p>
         <h2 className="font-[family-name:var(--font-display)] text-2xl">
           {hostName} has the white pieces
         </h2>
+
+        {lanMode && (
+          <p className="text-sm text-[var(--mist)]">
+            LAN party: scan the QR to claim a seat on this Wi‑Fi. Moves still sync
+            through Atelier&apos;s cloud (not peer-to-peer).
+          </p>
+        )}
 
         {tablecast ? (
           <TablecastQrDock

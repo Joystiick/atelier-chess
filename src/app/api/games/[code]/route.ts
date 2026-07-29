@@ -74,6 +74,8 @@ export async function GET(_request: Request, { params }: Params) {
     tablecast: game.tablecast,
     spectatorCount: game.spectatorCount,
     ghostLeague: game.ghostLeague,
+    lanMode: game.lanMode,
+    variant: game.variant ?? "standard",
     joinTicket: you === "w" && game.status === "waiting" ? game.joinTicket : null,
     you,
     spectator: you === null,

@@ -18,7 +18,7 @@ Living checklist for the full ship. Update as slices land.
 - [x] 10. Kiosk mode v2 (locked local QR, guest join)
 
 ## Wave C — bigger bets
-- [ ] 11. Local LAN table (or documented best-effort)
+- [x] 11. Local LAN table (or documented best-effort)
 - [ ] 12. Broadcast board (overlay-friendly watch)
 - [ ] 13. Variants café (Chess960 / antichess weekly)
 - [ ] 14. Signed updates + auto-update UX
@@ -27,6 +27,7 @@ Living checklist for the full ship. Update as slices land.
 ## Notes
 - Desktop-only lobby/play create; phone: `/join`, `/game`, `/watch`, `/handoff`, `/seat`, `/kiosk/join`
 - Tablecast: Open from lobby or WaitingRoom; rematch keeps `tablecast`; gallery uses Pusher (read-only)
+- LAN party: `lanMode` create + badge; QR seat claim; cloud moves with sparse polling (not WebRTC)
 - Clubs: invite `?invite=1`, open table code, presence “who’s free”
 - Puzzle: calendar-day streak in localStorage; miss a day resets
 - Coach whisper: heuristic bullets on GameOverOverlay (no engine dump)

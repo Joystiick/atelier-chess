@@ -81,7 +81,11 @@ function PlayPageInner() {
 
   const createGame = async (
     friendId?: string | null,
-    opts?: { tablecast?: boolean },
+    opts?: {
+      tablecast?: boolean;
+      lanMode?: boolean;
+      variant?: "weekly" | "chess960" | "antichess";
+    },
   ) => {
     setBusy(true);
     setError("");
@@ -93,12 +97,14 @@ function PlayPageInner() {
         body: JSON.stringify({
           timeControl,
           inviteFriendId: friendId || undefined,
-          rated,
+          rated: rated && !opts?.variant,
           correspondence,
           password: salonPassword.trim() || undefined,
           revealNames,
           blindfoldCafe,
           tablecast: Boolean(opts?.tablecast),
+          lanMode: Boolean(opts?.lanMode),
+          variant: opts?.variant,
         }),
       });
       const data = await res.json();
@@ -378,6 +384,29 @@ function PlayPageInner() {
           </button>
           <p className="text-center text-xs text-[var(--mist)]">
             Tablecast: desktop is the table, phones sit and watch via QR.
+          </p>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            disabled={busy}
+            onClick={() => void createGame(null, { lanMode: true })}
+          >
+            {busy ? "Creating…" : "LAN party table"}
+          </button>
+          <p className="text-center text-xs text-[var(--mist)]">
+            Same-room QR join with a LAN badge and sparse cloud polling. Moves
+            still sync through Atelier&apos;s servers (not peer-to-peer).
+          </p>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            disabled={busy}
+            onClick={() => void createGame(null, { variant: "weekly" })}
+          >
+            {busy ? "Creating…" : "Variants café · weekly special"}
+          </button>
+          <p className="text-center text-xs text-[var(--mist)]">
+            Rotating Chess960 / antichess (café lite). Unrated tables.
           </p>
           <button
             type="button"

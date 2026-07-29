@@ -1,4 +1,4 @@
-﻿import {
+import {
   boolean,
   integer,
   pgEnum,
@@ -57,12 +57,19 @@ export const games = pgTable(
     salonNightId: uuid("salon_night_id"),
     /** Chat policy when seated from a salon night: all | emotes | off */
     chatMode: text("chat_mode").notNull().default("all"),
-    /** Desktop table + phone seats + gallery — Tablecast mode */
+    /** Desktop table + phone seats + gallery ? Tablecast mode */
     tablecast: boolean("tablecast").notNull().default(false),
     /** Soft gallery count (join/leave heartbeats from /watch) */
     spectatorCount: integer("spectator_count").notNull().default(0),
-    /** Soft seasonal ladder — set on ghost rematch tables */
+    /** Soft seasonal ladder ? set on ghost rematch tables */
     ghostLeague: boolean("ghost_league").notNull().default(false),
+    /**
+     * Same-room / LAN party: QR seat claim + cloud moves with sparse polling.
+     * Not a WebRTC mesh ? see /how-to.
+     */
+    lanMode: boolean("lan_mode").notNull().default(false),
+    /** standard | chess960 | antichess */
+    variant: text("variant").notNull().default("standard"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -117,6 +124,10 @@ export const users = pgTable(
     seasonElo: integer("season_elo").notNull().default(1200),
     seasonKey: text("season_key").notNull().default(""),
     gamesPlayed: integer("games_played").notNull().default(0),
+    /** Soft Atelier Pass ? cosmetics only, no pay-to-win */
+    atelierPass: boolean("atelier_pass").notNull().default(false),
+    /** JSON list of theme ids unlocked via Pass (or empty) */
+    passCosmetics: text("pass_cosmetics").notNull().default("[]"),
     presence: presenceStatusEnum("presence").notNull().default("offline"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
       .notNull()
@@ -287,6 +298,8 @@ export const clubs = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     openTableCode: text("open_table_code"),
+    /** Always-on Tablecast House venue for this club */
+    houseEnabled: boolean("house_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -366,6 +379,8 @@ export const salonNights = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }),
     /** all | emotes | off */
     chatMode: text("chat_mode").notNull().default("all"),
+    /** Host-rotated featured board for salon stage / OBS */
+    featuredGameCode: text("featured_game_code"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

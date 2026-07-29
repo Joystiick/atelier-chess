@@ -6,6 +6,12 @@ import {
   generateJoinTicket,
   generatePlayerToken,
 } from "@/lib/codes";
+import {
+  isGameVariant,
+  startingFen,
+  type GameVariant,
+  weeklyVariantSpecial,
+} from "@/lib/chess/variants";
 import { db } from "@/lib/db";
 import { friendships, gameInvites, games } from "@/lib/db/schema";
 import { isDesktopRequest } from "@/lib/desktop/guard";
@@ -65,6 +71,8 @@ export async function POST(request: Request) {
     blindfoldCafe?: boolean;
     salonNightId?: string;
     tablecast?: boolean;
+    lanMode?: boolean;
+    variant?: GameVariant | "weekly";
   };
   const tcId =
     body.timeControl && body.timeControl in TIME_CONTROLS
@@ -73,6 +81,14 @@ export async function POST(request: Request) {
   const tc = TIME_CONTROLS[tcId];
   const token = generatePlayerToken();
   const inviteFriendId = body.inviteFriendId?.trim() || null;
+
+  let variant: GameVariant = "standard";
+  if (body.variant === "weekly") {
+    variant = weeklyVariantSpecial();
+  } else if (isGameVariant(body.variant)) {
+    variant = body.variant;
+  }
+  const fen = startingFen(variant);
 
   if (inviteFriendId) {
     if (!(await areFriends(me.id, inviteFriendId))) {
@@ -99,6 +115,7 @@ export async function POST(request: Request) {
         .values({
           code,
           status: "waiting",
+          fen,
           whiteName: me.username,
           whiteToken: token,
           whiteUserId: me.id,
@@ -106,7 +123,7 @@ export async function POST(request: Request) {
           blackClockMs: tc.baseMs,
           timeControlMs: tc.baseMs,
           incrementMs: tc.incMs,
-          rated: body.rated !== false,
+          rated: body.rated !== false && variant === "standard",
           correspondence: Boolean(body.correspondence),
           passwordHash,
           maxSpectators,
@@ -116,6 +133,8 @@ export async function POST(request: Request) {
           blindfoldCafe: Boolean(body.blindfoldCafe),
           salonNightId: body.salonNightId || null,
           tablecast: Boolean(body.tablecast),
+          lanMode: Boolean(body.lanMode),
+          variant,
         })
         .returning();
 
@@ -179,6 +198,8 @@ export async function POST(request: Request) {
         joinTicket: row.joinTicket,
         blindfoldCafe: row.blindfoldCafe,
         tablecast: row.tablecast,
+        lanMode: row.lanMode,
+        variant: row.variant,
       });
     } catch {
       code = generateGameCode();

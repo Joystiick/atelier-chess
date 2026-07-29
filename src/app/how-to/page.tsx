@@ -32,6 +32,24 @@ export default function HowToPage() {
           <li>Open <code className="text-[var(--brass)]">?spectate=1</code> to watch.</li>
         </ul>
         <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
+          LAN party tables
+        </h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Create a <strong className="text-[var(--cream)]">LAN party table</strong>{" "}
+            from the lobby when everyone is in the same room.
+          </li>
+          <li>
+            Seat claim still uses the QR / join link (works on the same Wi‑Fi). Moves
+            sync through Atelier&apos;s cloud — this is not peer-to-peer WebRTC.
+          </li>
+          <li>
+            LAN tables show a <strong className="text-[var(--cream)]">LAN</strong>{" "}
+            badge and poll less often when live updates are connected, to ease
+            shared networks.
+          </li>
+        </ul>
+        <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
           Board controls
         </h2>
         <ul className="list-disc space-y-1 pl-5">
