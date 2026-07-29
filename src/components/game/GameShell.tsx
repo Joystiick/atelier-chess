@@ -72,11 +72,11 @@ const REPLAY_KEY = "atelier.replayPgn";
 const FILES = "abcdefgh";
 
 const REMATCH_LINES = [
-  "Same table — shall we?",
+  "Same table ÔÇö shall we?",
   "One more, with feeling.",
   "The salon still has light.",
   "Rematch? The pieces remember.",
-  "Again — fortune favors the curious.",
+  "Again ÔÇö fortune favors the curious.",
 ];
 
 const MOOD_ORDER = Object.keys(MOOD_PACKS) as MoodId[];
@@ -387,7 +387,7 @@ export function GameShell(props: GameShellProps) {
           ? AI_ELO[props.level]
           : 1200;
       const next = updateElo(result, opp);
-      setEloNote(`Local Elo → ${next}`);
+      setEloNote(`Local Elo ÔåÆ ${next}`);
       if (props.mode === "human" && props.opponentName) {
         setLastOpponent(props.opponentName);
       }
@@ -401,7 +401,7 @@ export function GameShell(props: GameShellProps) {
       }
       const rematch =
         REMATCH_LINES[Math.floor(Math.random() * REMATCH_LINES.length)]!;
-      setBanter((prev) => (prev ? `${prev} · ${rematch}` : rematch));
+      setBanter((prev) => (prev ? `${prev} ┬À ${rematch}` : rematch));
 
       const archiveCode = props.mode === "human" ? props.code : "ai";
       const opponentLabel =
@@ -439,7 +439,7 @@ export function GameShell(props: GameShellProps) {
         .then((r) => r.json())
         .then((data) => {
           if (data.user?.elo != null) {
-            setEloNote(`Elo → ${data.user.elo}`);
+            setEloNote(`Elo ÔåÆ ${data.user.elo}`);
           }
         })
         .catch(() => {
@@ -543,7 +543,7 @@ export function GameShell(props: GameShellProps) {
   const onFlag = useCallback(
     (color: "w" | "b") => {
       const winner = color === "w" ? "Black" : "White";
-      endGame(`Flag — ${winner} wins on time`);
+      endGame(`Flag ÔÇö ${winner} wins on time`);
       if (props.mode === "human" && props.onResign) {
         void props.onResign();
       }
@@ -570,7 +570,7 @@ export function GameShell(props: GameShellProps) {
     (chess: Chess) => {
       if (chess.isCheckmate()) {
         const winner = chess.turn() === "w" ? "Black" : "White";
-        endGame(`Checkmate — ${winner} wins`);
+        endGame(`Checkmate ÔÇö ${winner} wins`);
         return true;
       }
       if (chess.isDraw()) {
@@ -580,7 +580,7 @@ export function GameShell(props: GameShellProps) {
             : chess.isThreefoldRepetition()
               ? "Draw by repetition"
               : chess.isInsufficientMaterial()
-                ? "Draw — insufficient material"
+                ? "Draw ÔÇö insufficient material"
                 : "Draw",
         );
         return true;
@@ -622,7 +622,7 @@ export function GameShell(props: GameShellProps) {
     if (live.isGameOver() || live.turn() === playerColor || showOver) return;
 
     setThinking(true);
-    setStatusText(`${AI_RIVALS[aiLevel].name} is thinking…`);
+    setStatusText(`${AI_RIVALS[aiLevel].name} is thinkingÔÇª`);
     engineAbort.current?.abort();
     const ac = new AbortController();
     engineAbort.current = ac;
@@ -643,7 +643,7 @@ export function GameShell(props: GameShellProps) {
         applyEndStatus(live);
       }
     } catch {
-      setStatusText("Engine paused — your move when ready.");
+      setStatusText("Engine paused ÔÇö your move when ready.");
     } finally {
       setThinking(false);
       setStatusText((s) => (s.includes("thinking") ? "" : s));
@@ -730,7 +730,7 @@ export function GameShell(props: GameShellProps) {
           if (clocks?.blackClockMs != null) setBaseBlackMs(clocks.blackClockMs);
         } catch {
           setFen(prevFen);
-          setStatusText("Move rejected — try again.");
+          setStatusText("Move rejected ÔÇö try again.");
           return;
         }
       }
@@ -831,7 +831,7 @@ export function GameShell(props: GameShellProps) {
           return;
         }
         const legal = position.moves({ square: selected, verbose: true });
-        // For premoves, opponent's turn — legal moves are opponent's; use ghost chess with our turn
+        // For premoves, opponent's turn ÔÇö legal moves are opponent's; use ghost chess with our turn
         const ghost = new Chess(fen);
         // Force our color by temporarily... actually chess.js only allows current turn.
         // Store intended from-to if selected piece is ours.
@@ -987,7 +987,7 @@ export function GameShell(props: GameShellProps) {
     if (spectator) return;
     if (!confirm("Resign this game?")) return;
     const winner = playerColor === "w" ? "Black" : "White";
-    endGame(`Resignation — ${winner} wins`);
+    endGame(`Resignation ÔÇö ${winner} wins`);
     if (props.mode === "human" && props.onResign) void props.onResign();
   };
 
@@ -1073,7 +1073,7 @@ export function GameShell(props: GameShellProps) {
   const them =
     props.mode === "ai"
       ? AI_RIVALS[props.level].name
-      : (props.opponentName ?? "Waiting…");
+      : (props.opponentName ?? "WaitingÔÇª");
 
   const topIsYou = orientation === "black";
   const topName = topIsYou ? you : them;
@@ -1243,7 +1243,7 @@ export function GameShell(props: GameShellProps) {
         {pendingConfirm && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-[var(--mist)]">
-              Confirm {pendingConfirm.from}→{pendingConfirm.to}?
+              Confirm {pendingConfirm.from}ÔåÆ{pendingConfirm.to}?
             </span>
             <button
               type="button"
@@ -1298,7 +1298,7 @@ export function GameShell(props: GameShellProps) {
           >
             <input
               className="field"
-              placeholder='Type SAN — e4, Nf3…'
+              placeholder='Type SAN ÔÇö e4, Nf3ÔÇª'
               value={sanInput}
               onChange={(e) => setSanInput(e.target.value)}
               aria-label="Blindfold move (SAN)"
@@ -1332,13 +1332,13 @@ export function GameShell(props: GameShellProps) {
         )}
         <p className="text-center text-xs text-[var(--brass)]">
           {title}
-          {opening ? ` · ${opening}` : ""}
-          {spectator ? " · Spectating" : ""}
-          {rated ? " · Rated" : " · Casual"}
-          {correspondence ? " · Correspondence" : ""}
+          {opening ? ` ┬À ${opening}` : ""}
+          {spectator ? " ┬À Spectating" : ""}
+          {rated ? " ┬À Rated" : " ┬À Casual"}
+          {correspondence ? " ┬À Correspondence" : ""}
         </p>
         <p className="text-center text-[10px] text-[var(--mist)]">
-          Keys: arrows select · Enter moves (one legal) · Esc clears
+          Keys: arrows select ┬À Enter moves (one legal) ┬À Esc clears
         </p>
       </div>
 
