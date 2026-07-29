@@ -139,7 +139,7 @@ export default function ChallengePage() {
           </button>
           <p className="text-xs text-[var(--mist)]">
             Opens your table and sends them an invite. Share this page URL as your
-            AirDrop card.
+            AirDrop card — the link carries an Atelier challenge OG image.
           </p>
         </>
       ) : (
