@@ -536,6 +536,30 @@ body.desktop-client .hero-foot {
     inset 0 0 12px 2px rgba(40, 70, 48, 0.45);
 }
 
+/* Tablecast host / phone seat */
+.tablecast-clock {
+  font-size: 1.65rem;
+  letter-spacing: 0.04em;
+}
+
+.tablecast-clock-bar {
+  min-height: 3.25rem;
+  padding-inline: 1rem;
+}
+
+.tablecast-dock {
+  width: 100%;
+}
+
+.tablecast-host .chess-board,
+.tablecast-host [data-board] {
+  /* slightly larger presence on the desk */
+}
+
+.tablecast-phone .clock {
+  font-size: 1.5rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .starfield-layer {
     animation: none !important;

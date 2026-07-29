@@ -7,6 +7,13 @@ import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+/**
+ * Authorize private Pusher channels.
+ * - private-user-*: session owner only
+ * - private-game-*: seated players (valid seat cookie) OR read-only spectators
+ *   who know the game code. Spectators get channel events only — move/action
+ *   APIs still require a valid seat cookie.
+ */
 export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   let socketId = "";
@@ -51,12 +58,17 @@ export async function POST(request: Request) {
 
   const jar = await cookies();
   const seat = jar.get(`atelier_seat_${code}`)?.value;
-  if (!seat) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const [color, token] = seat.split(":");
-  const ok =
-    (color === "w" && token === game.whiteToken) ||
-    (color === "b" && token === game.blackToken);
-  if (!ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (seat) {
+    const [color, token] = seat.split(":");
+    const ok =
+      (color === "w" && token === game.whiteToken) ||
+      (color === "b" && token === game.blackToken);
+    if (!ok) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+  // No seat cookie → gallery spectator. Code knowledge is enough for read-only
+  // subscribe; never grant move rights here (those stay on seat-gated APIs).
 
   const auth = getPusher().authorizeChannel(socketId, channel);
   return NextResponse.json(auth);

@@ -79,7 +79,10 @@ function PlayPageInner() {
     })();
   }, [authLoading, user, joinParam, router]);
 
-  const createGame = async (friendId?: string | null) => {
+  const createGame = async (
+    friendId?: string | null,
+    opts?: { tablecast?: boolean },
+  ) => {
     setBusy(true);
     setError("");
     setPreferredTimeControl(timeControl);
@@ -95,6 +98,7 @@ function PlayPageInner() {
           password: salonPassword.trim() || undefined,
           revealNames,
           blindfoldCafe,
+          tablecast: Boolean(opts?.tablecast),
         }),
       });
       const data = await res.json();
@@ -364,6 +368,17 @@ function PlayPageInner() {
           >
             {busy ? "Creating…" : "Create table"}
           </button>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            disabled={busy}
+            onClick={() => void createGame(null, { tablecast: true })}
+          >
+            {busy ? "Creating…" : "Open Tablecast"}
+          </button>
+          <p className="text-center text-xs text-[var(--mist)]">
+            Tablecast: desktop is the table, phones sit and watch via QR.
+          </p>
           <button
             type="button"
             className="btn-ghost w-full"

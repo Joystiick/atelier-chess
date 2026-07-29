@@ -65,6 +65,7 @@ export async function POST(request: Request, { params }: Params) {
             incrementMs: game.incrementMs,
             rated: game.rated,
             blindfoldCafe: game.blindfoldCafe,
+            tablecast: game.tablecast,
             joinTicket,
           })
           .returning();
@@ -81,6 +82,7 @@ export async function POST(request: Request, { params }: Params) {
           color: "w" as const,
           ghost: true,
           joinTicket,
+          tablecast: row.tablecast,
         });
       } catch {
         newCode = generateGameCode();
@@ -112,6 +114,7 @@ export async function POST(request: Request, { params }: Params) {
           incrementMs: game.incrementMs,
           rated: game.rated,
           blindfoldCafe: game.blindfoldCafe,
+          tablecast: game.tablecast,
           joinTicket: null,
         })
         .returning();
@@ -131,6 +134,12 @@ export async function POST(request: Request, { params }: Params) {
           claim: { w: whiteToken, b: blackToken },
           mapping: { w: "b", b: "w" } as const,
         });
+        if (row.tablecast) {
+          await getPusher().trigger(gameChannel(row.code), "tablecast.opened", {
+            code: row.code,
+            at: Date.now(),
+          });
+        }
       } catch {
         // ignore
       }
@@ -139,6 +148,7 @@ export async function POST(request: Request, { params }: Params) {
         code: row.code,
         color: newColor,
         claim: { w: whiteToken, b: blackToken },
+        tablecast: row.tablecast,
       });
     } catch {
       newCode = generateGameCode();

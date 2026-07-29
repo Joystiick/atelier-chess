@@ -11,7 +11,7 @@ import { friendships, gameInvites, games } from "@/lib/db/schema";
 import { isDesktopRequest } from "@/lib/desktop/guard";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
 import { touchPresence } from "@/lib/notify";
-import { getPusher, userChannel } from "@/lib/pusher/server";
+import { gameChannel, getPusher, userChannel } from "@/lib/pusher/server";
 import { and, eq, or } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
     clubId?: string;
     blindfoldCafe?: boolean;
     salonNightId?: string;
+    tablecast?: boolean;
   };
   const tcId =
     body.timeControl && body.timeControl in TIME_CONTROLS
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
           joinTicket,
           blindfoldCafe: Boolean(body.blindfoldCafe),
           salonNightId: body.salonNightId || null,
+          tablecast: Boolean(body.tablecast),
         })
         .returning();
 
@@ -126,6 +128,17 @@ export async function POST(request: Request) {
       });
 
       await touchPresence(me.id, "ingame", row.code);
+
+      if (row.tablecast) {
+        try {
+          await getPusher().trigger(gameChannel(row.code), "tablecast.opened", {
+            code: row.code,
+            at: Date.now(),
+          });
+        } catch {
+          // optional — channel may have no subscribers yet
+        }
+      }
 
       if (inviteFriendId) {
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -165,6 +178,7 @@ export async function POST(request: Request) {
         correspondence: row.correspondence,
         joinTicket: row.joinTicket,
         blindfoldCafe: row.blindfoldCafe,
+        tablecast: row.tablecast,
       });
     } catch {
       code = generateGameCode();

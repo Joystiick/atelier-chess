@@ -72,11 +72,11 @@ const REPLAY_KEY = "atelier.replayPgn";
 const FILES = "abcdefgh";
 
 const REMATCH_LINES = [
-  "Same table ÔÇö shall we?",
+  "Same table — shall we?",
   "One more, with feeling.",
   "The salon still has light.",
   "Rematch? The pieces remember.",
-  "Again ÔÇö fortune favors the curious.",
+  "Again — fortune favors the curious.",
 ];
 
 const MOOD_ORDER = Object.keys(MOOD_PACKS) as MoodId[];
@@ -117,6 +117,8 @@ type GameShellProps =
       /** Desktop table + phone seats + gallery */
       tablecast?: boolean;
       spectatorCount?: number;
+      /** Soft seasonal ladder from ghost rematch */
+      ghostLeague?: boolean;
       onTablecastChange?: (on: boolean) => void;
       /** Compact phone seat UI for Tablecast */
       phoneController?: boolean;
@@ -387,7 +389,7 @@ export function GameShell(props: GameShellProps) {
           ? AI_ELO[props.level]
           : 1200;
       const next = updateElo(result, opp);
-      setEloNote(`Local Elo ÔåÆ ${next}`);
+      setEloNote(`Local Elo → ${next}`);
       if (props.mode === "human" && props.opponentName) {
         setLastOpponent(props.opponentName);
       }
@@ -401,7 +403,7 @@ export function GameShell(props: GameShellProps) {
       }
       const rematch =
         REMATCH_LINES[Math.floor(Math.random() * REMATCH_LINES.length)]!;
-      setBanter((prev) => (prev ? `${prev} ┬À ${rematch}` : rematch));
+      setBanter((prev) => (prev ? `${prev} · ${rematch}` : rematch));
 
       const archiveCode = props.mode === "human" ? props.code : "ai";
       const opponentLabel =
@@ -434,13 +436,20 @@ export function GameShell(props: GameShellProps) {
         body: JSON.stringify({
           result,
           opponent: aiLevel ?? "human",
+          ghostLeague: props.mode === "human" && Boolean(props.ghostLeague),
         }),
       })
         .then((r) => r.json())
         .then((data) => {
-          if (data.user?.elo != null) {
-            setEloNote(`Elo ÔåÆ ${data.user.elo}`);
+          const parts: string[] = [];
+          if (data.user?.elo != null) parts.push(`Elo → ${data.user.elo}`);
+          if (data.softRank && data.seasonDelta != null) {
+            const sign = data.seasonDelta >= 0 ? "+" : "";
+            parts.push(
+              `Ghost League ${sign}${data.seasonDelta} · ${data.softRank}`,
+            );
           }
+          if (parts.length) setEloNote(parts.join(" · "));
         })
         .catch(() => {
           // guest play keeps local elo only
@@ -543,7 +552,7 @@ export function GameShell(props: GameShellProps) {
   const onFlag = useCallback(
     (color: "w" | "b") => {
       const winner = color === "w" ? "Black" : "White";
-      endGame(`Flag ÔÇö ${winner} wins on time`);
+      endGame(`Flag — ${winner} wins on time`);
       if (props.mode === "human" && props.onResign) {
         void props.onResign();
       }
@@ -570,7 +579,7 @@ export function GameShell(props: GameShellProps) {
     (chess: Chess) => {
       if (chess.isCheckmate()) {
         const winner = chess.turn() === "w" ? "Black" : "White";
-        endGame(`Checkmate ÔÇö ${winner} wins`);
+        endGame(`Checkmate — ${winner} wins`);
         return true;
       }
       if (chess.isDraw()) {
@@ -580,7 +589,7 @@ export function GameShell(props: GameShellProps) {
             : chess.isThreefoldRepetition()
               ? "Draw by repetition"
               : chess.isInsufficientMaterial()
-                ? "Draw ÔÇö insufficient material"
+                ? "Draw — insufficient material"
                 : "Draw",
         );
         return true;
@@ -622,7 +631,7 @@ export function GameShell(props: GameShellProps) {
     if (live.isGameOver() || live.turn() === playerColor || showOver) return;
 
     setThinking(true);
-    setStatusText(`${AI_RIVALS[aiLevel].name} is thinkingÔÇª`);
+    setStatusText(`${AI_RIVALS[aiLevel].name} is thinking…`);
     engineAbort.current?.abort();
     const ac = new AbortController();
     engineAbort.current = ac;
@@ -643,7 +652,7 @@ export function GameShell(props: GameShellProps) {
         applyEndStatus(live);
       }
     } catch {
-      setStatusText("Engine paused ÔÇö your move when ready.");
+      setStatusText("Engine paused — your move when ready.");
     } finally {
       setThinking(false);
       setStatusText((s) => (s.includes("thinking") ? "" : s));
@@ -730,7 +739,7 @@ export function GameShell(props: GameShellProps) {
           if (clocks?.blackClockMs != null) setBaseBlackMs(clocks.blackClockMs);
         } catch {
           setFen(prevFen);
-          setStatusText("Move rejected ÔÇö try again.");
+          setStatusText("Move rejected — try again.");
           return;
         }
       }
@@ -831,7 +840,7 @@ export function GameShell(props: GameShellProps) {
           return;
         }
         const legal = position.moves({ square: selected, verbose: true });
-        // For premoves, opponent's turn ÔÇö legal moves are opponent's; use ghost chess with our turn
+        // For premoves, opponent's turn — legal moves are opponent's; use ghost chess with our turn
         const ghost = new Chess(fen);
         // Force our color by temporarily... actually chess.js only allows current turn.
         // Store intended from-to if selected piece is ours.
@@ -987,7 +996,7 @@ export function GameShell(props: GameShellProps) {
     if (spectator) return;
     if (!confirm("Resign this game?")) return;
     const winner = playerColor === "w" ? "Black" : "White";
-    endGame(`Resignation ÔÇö ${winner} wins`);
+    endGame(`Resignation — ${winner} wins`);
     if (props.mode === "human" && props.onResign) void props.onResign();
   };
 
@@ -1073,7 +1082,7 @@ export function GameShell(props: GameShellProps) {
   const them =
     props.mode === "ai"
       ? AI_RIVALS[props.level].name
-      : (props.opponentName ?? "WaitingÔÇª");
+      : (props.opponentName ?? "Waiting…");
 
   const topIsYou = orientation === "black";
   const topName = topIsYou ? you : them;
@@ -1104,13 +1113,27 @@ export function GameShell(props: GameShellProps) {
   const boardLastMove = premoveHighlight ?? lastMove;
 
   return (
-    <div className="game-layout relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start lg:gap-10">
+    <div
+      className={`game-layout relative mx-auto flex w-full flex-col gap-6 px-4 py-6 lg:flex-row lg:items-start lg:gap-10 ${
+        phoneController
+          ? "max-w-lg tablecast-phone"
+          : tablecast
+            ? "max-w-7xl tablecast-host"
+            : "max-w-6xl"
+      }`}
+    >
       {props.mode === "human" && humanStatus === "waiting" && !spectator && (
         <WaitingRoom
           code={props.code}
           hostName={props.playerName}
           joinTicket={joinTicket || props.joinTicket}
           onTicketChange={setJoinTicket}
+          tablecast={tablecast}
+          spectatorCount={spectatorCount}
+          onTablecastChange={(on) => {
+            setTablecastOn(on);
+            if (props.mode === "human") props.onTablecastChange?.(on);
+          }}
         />
       )}
 
@@ -1196,17 +1219,27 @@ export function GameShell(props: GameShellProps) {
       )}
 
       <div className="flex flex-1 flex-col items-center gap-3">
-        <div className={`player-bar ${topActive ? "active-side" : ""}`}>
+        <div
+          className={`player-bar ${topActive ? "active-side" : ""} ${
+            tablecast || phoneController ? "tablecast-clock-bar" : ""
+          }`}
+        >
           <span className="player-name">{topName}</span>
           <span
-            className={`clock ${topActive ? "active" : ""} ${topClock < 30_000 ? "low" : ""}`}
+            className={`clock ${topActive ? "active" : ""} ${topClock < 30_000 ? "low" : ""} ${
+              tablecast || phoneController ? "tablecast-clock" : ""
+            }`}
           >
             {formatClockOrUnlimited(topClock, unlimited)}
           </span>
         </div>
 
         <div
-          className={`w-full max-w-[min(92vw,560px)] piece-set-${pieceSet}`}
+          className={`w-full piece-set-${pieceSet} ${
+            tablecast && !phoneController
+              ? "max-w-[min(96vw,720px)]"
+              : "max-w-[min(92vw,560px)]"
+          }`}
           style={{ filter: pieceFilter === "none" ? undefined : pieceFilter }}
         >
           <ChessBoard
@@ -1231,10 +1264,16 @@ export function GameShell(props: GameShellProps) {
           />
         </div>
 
-        <div className={`player-bar ${bottomActive ? "active-side" : ""}`}>
+        <div
+          className={`player-bar ${bottomActive ? "active-side" : ""} ${
+            tablecast || phoneController ? "tablecast-clock-bar" : ""
+          }`}
+        >
           <span className="player-name">{bottomName}</span>
           <span
-            className={`clock ${bottomActive ? "active" : ""} ${bottomClock < 30_000 ? "low" : ""}`}
+            className={`clock ${bottomActive ? "active" : ""} ${bottomClock < 30_000 ? "low" : ""} ${
+              tablecast || phoneController ? "tablecast-clock" : ""
+            }`}
           >
             {formatClockOrUnlimited(bottomClock, unlimited)}
           </span>
@@ -1243,7 +1282,7 @@ export function GameShell(props: GameShellProps) {
         {pendingConfirm && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-[var(--mist)]">
-              Confirm {pendingConfirm.from}ÔåÆ{pendingConfirm.to}?
+              Confirm {pendingConfirm.from}→{pendingConfirm.to}?
             </span>
             <button
               type="button"
@@ -1298,7 +1337,7 @@ export function GameShell(props: GameShellProps) {
           >
             <input
               className="field"
-              placeholder='Type SAN ÔÇö e4, Nf3ÔÇª'
+              placeholder='Type SAN — e4, Nf3…'
               value={sanInput}
               onChange={(e) => setSanInput(e.target.value)}
               aria-label="Blindfold move (SAN)"
@@ -1331,18 +1370,53 @@ export function GameShell(props: GameShellProps) {
           </p>
         )}
         <p className="text-center text-xs text-[var(--brass)]">
+          {tablecast ? "Tablecast · " : ""}
           {title}
-          {opening ? ` ┬À ${opening}` : ""}
-          {spectator ? " ┬À Spectating" : ""}
-          {rated ? " ┬À Rated" : " ┬À Casual"}
-          {correspondence ? " ┬À Correspondence" : ""}
+          {opening ? ` · ${opening}` : ""}
+          {spectator ? " · Spectating" : ""}
+          {phoneController ? " · Phone seat" : ""}
+          {rated ? " · Rated" : " · Casual"}
+          {correspondence ? " · Correspondence" : ""}
         </p>
-        <p className="text-center text-[10px] text-[var(--mist)]">
-          Keys: arrows select ┬À Enter moves (one legal) ┬À Esc clears
-        </p>
+        {!phoneController && (
+          <p className="text-center text-[10px] text-[var(--mist)]">
+            Keys: arrows select · Enter moves (one legal) · Esc clears
+          </p>
+        )}
       </div>
 
-      <aside className="w-full shrink-0 space-y-4 lg:w-72">
+      <aside
+        className={`w-full shrink-0 space-y-4 ${
+          phoneController ? "" : tablecast ? "lg:w-80" : "lg:w-72"
+        }`}
+      >
+        {tablecast && !phoneController && props.mode === "human" && (
+          <div className="panel">
+            <TablecastQrDock
+              code={props.code}
+              joinTicket={joinTicket || props.joinTicket}
+              status={humanStatus ?? "active"}
+              isHost={playerColor === "w"}
+              spectatorCount={spectatorCount}
+              onRefreshTicket={
+                playerColor === "w"
+                  ? () => {
+                      void (async () => {
+                        const res = await fetch(`/api/games/${props.code}/ticket`, {
+                          method: "POST",
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.joinTicket) setJoinTicket(data.joinTicket);
+                      })();
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
+
+        {!phoneController && (
+        <>
         <div className="panel">
           <h2 className="panel-title">Moves</h2>
           <ol className="move-list max-h-56 overflow-y-auto text-sm">
@@ -1545,10 +1619,13 @@ export function GameShell(props: GameShellProps) {
             </div>
           )}
         </div>
+        </>
+        )}
 
         {props.mode === "human" &&
           !spectator &&
-          humanStatus === "active" && (
+          humanStatus === "active" &&
+          !phoneController && (
             <div className="panel space-y-3">
               <h2 className="panel-title">Phone remote</h2>
               <p className="text-xs text-[var(--mist)]">

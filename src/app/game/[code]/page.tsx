@@ -30,6 +30,9 @@ type Snapshot = {
   takebackOfferBy?: string | null;
   joinTicket?: string | null;
   blindfoldCafe?: boolean;
+  tablecast?: boolean;
+  spectatorCount?: number;
+  ghostLeague?: boolean;
 };
 
 function GamePageInner() {
@@ -47,6 +50,10 @@ function GamePageInner() {
   const [takebackOfferBy, setTakebackOfferBy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [forceSpectate, setForceSpectate] = useState(wantSpectate);
+  const [tablecast, setTablecast] = useState(false);
+  const [spectatorCount, setSpectatorCount] = useState(0);
+  const [phoneController, setPhoneController] = useState(false);
+  const [ghostLeague, setGhostLeague] = useState(false);
 
   const applySnapshot = useCallback((data: Snapshot) => {
     startTransition(() => {
@@ -57,8 +64,33 @@ function GamePageInner() {
       if (data.blackClockMs != null) setBlackClockMs(data.blackClockMs);
       setDrawOfferBy(data.drawOfferBy ?? null);
       setTakebackOfferBy(data.takebackOfferBy ?? null);
+      setTablecast(Boolean(data.tablecast));
+      setGhostLeague(Boolean(data.ghostLeague));
+      if (typeof data.spectatorCount === "number") {
+        setSpectatorCount(data.spectatorCount);
+      }
     });
   }, []);
+
+  useEffect(() => {
+    const narrow =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 768px)").matches;
+    const desktopUa =
+      /\bElectron\//i.test(navigator.userAgent) ||
+      /\bAtelierDesktop\//i.test(navigator.userAgent);
+    setPhoneController(narrow && !desktopUa);
+  }, []);
+
+  useEffect(() => {
+    if (!snap?.you || !tablecast) return;
+    const surface = phoneController ? "phone" : "desktop";
+    void fetch(`/api/games/${code}/tablecast`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "seat_surface", surface }),
+    });
+  }, [code, snap?.you, tablecast, phoneController]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +196,17 @@ function GamePageInner() {
             router.push(`/game/${data.newCode}`);
           },
         );
+        channel.bind("tablecast.opened", () => {
+          startTransition(() => setTablecast(true));
+        });
+        channel.bind(
+          "tablecast.spectator_count",
+          (data: { count?: number }) => {
+            if (typeof data.count === "number") {
+              startTransition(() => setSpectatorCount(data.count!));
+            }
+          },
+        );
         stopPoll = startVisibilityAwareInterval(
           () => void refresh(),
           POLL_WITH_PUSHER_MS,
@@ -175,10 +218,55 @@ function GamePageInner() {
         );
       }
     } else {
-      stopPoll = startVisibilityAwareInterval(
-        () => void refresh(),
-        POLL_SPECTATOR_MS,
-      );
+      // Gallery / force-spectate — Pusher after spectator auth fix
+      try {
+        const pusher = getPusherClient();
+        channel = pusher.subscribe(`private-game-${code}`);
+        channel.bind("player.joined", () => void refresh());
+        channel.bind(
+          "move.made",
+          (data: {
+            fen: string;
+            result?: string | null;
+            whiteClockMs?: number;
+            blackClockMs?: number;
+          }) => {
+            startTransition(() => {
+              setRemoteFen(data.fen);
+              if (data.result) setRemoteResult(data.result);
+              if (data.whiteClockMs != null) setWhiteClockMs(data.whiteClockMs);
+              if (data.blackClockMs != null) setBlackClockMs(data.blackClockMs);
+            });
+            void refresh();
+          },
+        );
+        channel.bind("game.ended", (data: { result?: string }) => {
+          if (data.result) {
+            startTransition(() => setRemoteResult(data.result ?? null));
+          }
+          void refresh();
+        });
+        channel.bind("tablecast.opened", () => {
+          startTransition(() => setTablecast(true));
+        });
+        channel.bind(
+          "tablecast.spectator_count",
+          (data: { count?: number }) => {
+            if (typeof data.count === "number") {
+              startTransition(() => setSpectatorCount(data.count!));
+            }
+          },
+        );
+        stopPoll = startVisibilityAwareInterval(
+          () => void refresh(),
+          POLL_WITH_PUSHER_MS,
+        );
+      } catch {
+        stopPoll = startVisibilityAwareInterval(
+          () => void refresh(),
+          POLL_SPECTATOR_MS,
+        );
+      }
     }
 
     return () => {
@@ -384,6 +472,11 @@ function GamePageInner() {
         onAction={isSpectator ? undefined : (a) => onAction(a)}
         joinTicket={snap.joinTicket}
         blindfoldCafe={snap.blindfoldCafe}
+        tablecast={tablecast}
+        spectatorCount={spectatorCount}
+        ghostLeague={ghostLeague}
+        phoneController={phoneController && tablecast && !isSpectator}
+        onTablecastChange={setTablecast}
       />
     </main>
   );

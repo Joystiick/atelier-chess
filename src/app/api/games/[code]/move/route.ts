@@ -117,6 +117,8 @@ export async function POST(request: Request, { params }: Params) {
       uci,
       san: move.san,
       fen,
+      from: move.from,
+      to: move.to,
       turn: chess.turn(),
       status,
       result,

@@ -1,4 +1,4 @@
-import {
+﻿import {
   boolean,
   integer,
   pgEnum,
@@ -55,6 +55,14 @@ export const games = pgTable(
     handoffBlack: text("handoff_black"),
     blindfoldCafe: boolean("blindfold_cafe").notNull().default(false),
     salonNightId: uuid("salon_night_id"),
+    /** Chat policy when seated from a salon night: all | emotes | off */
+    chatMode: text("chat_mode").notNull().default("all"),
+    /** Desktop table + phone seats + gallery — Tablecast mode */
+    tablecast: boolean("tablecast").notNull().default(false),
+    /** Soft gallery count (join/leave heartbeats from /watch) */
+    spectatorCount: integer("spectator_count").notNull().default(0),
+    /** Soft seasonal ladder — set on ghost rematch tables */
+    ghostLeague: boolean("ghost_league").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -352,6 +360,12 @@ export const salonNights = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     status: salonNightStatusEnum("status").notNull().default("open"),
     timeControl: text("time_control").notNull().default("10|0"),
+    /** blindfold | bullet | emotes | open */
+    theme: text("theme").notNull().default("open"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    /** all | emotes | off */
+    chatMode: text("chat_mode").notNull().default("all"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -389,3 +403,4 @@ export type Puzzle = typeof puzzles.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type GameInvite = typeof gameInvites.$inferSelect;
+

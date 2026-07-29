@@ -2,6 +2,7 @@
 
 import { InviteQrPanel } from "@/components/game/InviteQrPanel";
 import { TableQr } from "@/components/game/TableQr";
+import { TablecastQrDock } from "@/components/game/TablecastQrDock";
 import { useFriendsFeed } from "@/hooks/useFriendsFeed";
 import { useCallback, useEffect, useState } from "react";
 
@@ -10,6 +11,9 @@ type WaitingRoomProps = {
   hostName: string;
   joinTicket?: string | null;
   onTicketChange?: (ticket: string) => void;
+  tablecast?: boolean;
+  onTablecastChange?: (on: boolean) => void;
+  spectatorCount?: number;
 };
 
 export function WaitingRoom({
@@ -17,16 +21,25 @@ export function WaitingRoom({
   hostName,
   joinTicket: ticketProp,
   onTicketChange,
+  tablecast: tablecastProp = false,
+  onTablecastChange,
+  spectatorCount = 0,
 }: WaitingRoomProps) {
   const [ticket, setTicket] = useState(ticketProp ?? "");
   const [inviteMsg, setInviteMsg] = useState("");
   const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [tablecast, setTablecast] = useState(tablecastProp);
+  const [opening, setOpening] = useState(false);
   const { friends } = useFriendsFeed();
 
   useEffect(() => {
     if (ticketProp) setTicket(ticketProp);
   }, [ticketProp]);
+
+  useEffect(() => {
+    setTablecast(tablecastProp);
+  }, [tablecastProp]);
 
   const refreshTicket = useCallback(async () => {
     const res = await fetch(`/api/games/${code}/ticket`, { method: "POST" });
@@ -40,6 +53,27 @@ export function WaitingRoom({
   useEffect(() => {
     if (!ticket) void refreshTicket();
   }, [ticket, refreshTicket]);
+
+  const openTablecast = async () => {
+    setOpening(true);
+    setInviteMsg("");
+    try {
+      const res = await fetch(`/api/games/${code}/tablecast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "open" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInviteMsg(data.error ?? "Could not open Tablecast");
+        return;
+      }
+      setTablecast(true);
+      onTablecastChange?.(true);
+    } finally {
+      setOpening(false);
+    }
+  };
 
   const startHandoff = async () => {
     const res = await fetch(`/api/games/${code}/handoff`, {
@@ -74,26 +108,56 @@ export function WaitingRoom({
     <div className="overlay-scrim" style={{ background: "rgba(0,0,0,0.45)" }}>
       <div className="overlay-card max-h-[90vh] space-y-4 overflow-y-auto">
         <p className="text-sm uppercase tracking-[0.2em] text-[var(--brass)]">
-          Waiting for opponent
+          {tablecast ? "Tablecast — waiting" : "Waiting for opponent"}
         </p>
         <h2 className="font-[family-name:var(--font-display)] text-2xl">
           {hostName} has the white pieces
         </h2>
 
-        <InviteQrPanel
-          code={code}
-          joinTicket={ticket}
-          status="waiting"
-          isHost
-          onRefreshTicket={() => void refreshTicket()}
-        />
+        {tablecast ? (
+          <TablecastQrDock
+            code={code}
+            joinTicket={ticket}
+            status="waiting"
+            isHost
+            onRefreshTicket={() => void refreshTicket()}
+            spectatorCount={spectatorCount}
+          />
+        ) : (
+          <InviteQrPanel
+            code={code}
+            joinTicket={ticket}
+            status="waiting"
+            isHost
+            onRefreshTicket={() => void refreshTicket()}
+          />
+        )}
+
+        {!tablecast && (
+          <button
+            type="button"
+            className="btn-primary w-full"
+            disabled={opening}
+            onClick={() => void openTablecast()}
+          >
+            {opening ? "Opening…" : "Open Tablecast"}
+          </button>
+        )}
+
+        {tablecast && (
+          <p className="text-sm text-[var(--mist)]">
+            Desktop is the table. Phone scans Join to sit. Watch is the gallery.
+          </p>
+        )}
 
         <p className="font-[family-name:var(--font-display)] text-3xl tracking-[0.18em] text-[var(--cream)]">
           {code}
         </p>
-        <p className="text-sm text-[var(--mist)]">
-          Friend scans Join — one-time ticket. Switch to Watch for spectators.
-        </p>
+        {!tablecast && (
+          <p className="text-sm text-[var(--mist)]">
+            Friend scans Join — one-time ticket. Switch to Watch for spectators.
+          </p>
+        )}
 
         <button
           type="button"

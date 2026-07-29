@@ -1,13 +1,16 @@
 "use client";
 
+import { ChessBoard, type BoardPiece } from "@/components/board/ChessBoard";
 import { InviteQrPanel } from "@/components/game/InviteQrPanel";
 import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
+import { Chess, type Square } from "chess.js";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const WATCH_POLL_MS = 8_000;
+const WATCH_POLL_MS = 30_000;
+const WATCH_POLL_FALLBACK_MS = 8_000;
 const MOVE_FEED_LIMIT = 24;
 
 const REACTIONS = ["👏", "😮", "🔥", "♟️", "☕", "😂"] as const;
@@ -26,6 +29,8 @@ type Snap = {
   turn: string;
   result: string | null;
   moves?: MoveSnap[];
+  tablecast?: boolean;
+  spectatorCount?: number;
 };
 
 type MovePair = {
@@ -56,6 +61,33 @@ function sparseMovePairs(moves: MoveSnap[], limit = MOVE_FEED_LIMIT): MovePair[]
   return pairs;
 }
 
+function piecesFromFen(fen: string): BoardPiece[] {
+  try {
+    const chess = new Chess(fen);
+    return chess.board().flatMap((row) =>
+      row
+        .filter((p): p is NonNullable<typeof p> => Boolean(p))
+        .map((p) => ({
+          square: p.square,
+          type: p.type,
+          color: p.color,
+        })),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function lastMoveFromHistory(fen: string): { from: Square; to: Square } | null {
+  try {
+    // Prefer PGN history when available via moves feed on snap — fen alone has no path.
+    void fen;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function WatchPage() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
@@ -64,6 +96,10 @@ export default function WatchPage() {
   const [error, setError] = useState("");
   const [burst, setBurst] = useState<{ emoji: string; from: string; id: number }[]>([]);
   const [name, setName] = useState("Guest");
+  const [spectatorCount, setSpectatorCount] = useState(0);
+  const [live, setLive] = useState(false);
+  const [pusherOk, setPusherOk] = useState(false);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,15 +112,33 @@ export default function WatchPage() {
         return;
       }
       setSnap(data);
+      if (typeof data.spectatorCount === "number") {
+        setSpectatorCount(data.spectatorCount);
+      }
+      if (data.tablecast || data.status === "active") setLive(true);
     };
     void load();
-    const stopPoll = startVisibilityAwareInterval(() => void load(), WATCH_POLL_MS);
+
+    void fetch(`/api/games/${code}/tablecast`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "spectator_join" }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.spectatorCount === "number") setSpectatorCount(d.spectatorCount);
+      })
+      .catch(() => {
+        // optional
+      });
 
     let channel: ReturnType<ReturnType<typeof getPusherClient>["subscribe"]> | null =
       null;
+    let stopPoll: (() => void) | null = null;
     try {
       const pusher = getPusherClient();
       channel = pusher.subscribe(`private-game-${code}`);
+      setPusherOk(true);
       channel.bind("spectator.reaction", (data: { emoji: string; from: string }) => {
         const id = Date.now() + Math.random();
         setBurst((b) => [...b.slice(-8), { emoji: data.emoji, from: data.from, id }]);
@@ -92,16 +146,41 @@ export default function WatchPage() {
           setBurst((b) => b.filter((x) => x.id !== id));
         }, 2800);
       });
-      channel.bind("move.made", () => void load());
+      channel.bind(
+        "move.made",
+        (data: { fen?: string; san?: string; from?: string; to?: string }) => {
+          setLive(true);
+          if (data.from && data.to) {
+            setLastMove({ from: data.from as Square, to: data.to as Square });
+          }
+          void load();
+        },
+      );
       channel.bind("game.ended", () => void load());
       channel.bind("player.joined", () => void load());
+      channel.bind("tablecast.opened", () => {
+        setLive(true);
+        void load();
+      });
+      channel.bind("tablecast.spectator_count", (data: { count?: number }) => {
+        if (typeof data.count === "number") setSpectatorCount(data.count);
+      });
+      stopPoll = startVisibilityAwareInterval(() => void load(), WATCH_POLL_MS);
     } catch {
-      // poll only
+      setPusherOk(false);
+      stopPoll = startVisibilityAwareInterval(() => void load(), WATCH_POLL_FALLBACK_MS);
     }
 
     return () => {
       cancelled = true;
-      stopPoll();
+      stopPoll?.();
+      void fetch(`/api/games/${code}/tablecast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "spectator_leave" }),
+      }).catch(() => {
+        // best-effort
+      });
       if (channel) {
         channel.unbind_all();
         try {
@@ -118,6 +197,11 @@ export default function WatchPage() {
   const waitingForFirst =
     moves.length === 0 &&
     (snap?.status === "waiting" || snap?.status === "active");
+
+  const pieces = useMemo(
+    () => (snap?.fen ? piecesFromFen(snap.fen) : []),
+    [snap?.fen],
+  );
 
   const react = async (emoji: string) => {
     await fetch(`/api/games/${code}/react`, {
@@ -144,6 +228,8 @@ export default function WatchPage() {
     );
   }
 
+  void lastMoveFromHistory;
+
   return (
     <main className="relative mx-auto min-h-screen max-w-lg space-y-4 px-4 py-8">
       <div className="flex items-center justify-between">
@@ -159,12 +245,38 @@ export default function WatchPage() {
         </button>
       </div>
 
-      <p className="text-xs uppercase tracking-[0.25em] text-[var(--brass)]">Watch party</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs uppercase tracking-[0.25em] text-[var(--brass)]">
+          {snap.tablecast ? "Tablecast gallery" : "Watch party"}
+        </p>
+        {live && snap.status !== "finished" && (
+          <span className="chip pointer-events-none border-[var(--brass)] text-[var(--brass)]">
+            Table live
+          </span>
+        )}
+        <span className="chip pointer-events-none text-xs">
+          {spectatorCount} watching
+        </span>
+        {!pusherOk && (
+          <span className="text-[10px] text-[var(--mist)]">Polling backup</span>
+        )}
+      </div>
       <h1 className="font-[family-name:var(--font-display)] text-3xl">Table {code}</h1>
       <p className="text-[var(--mist)]">
         {snap.whiteName ?? "White"} vs {snap.blackName ?? "Black"} · {snap.status}
         {snap.result ? ` · ${snap.result}` : ""}
       </p>
+
+      <div className="mx-auto w-full max-w-[min(92vw,420px)]">
+        <ChessBoard
+          pieces={pieces}
+          orientation="white"
+          interactive={false}
+          lastMove={lastMove}
+          theme="salon-emerald"
+          vignette
+        />
+      </div>
 
       <section className="panel relative overflow-hidden" aria-live="polite" aria-label="Move feed">
         <h2 className="panel-title">Commentary</h2>
