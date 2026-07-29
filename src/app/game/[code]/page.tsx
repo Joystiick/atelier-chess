@@ -1,11 +1,17 @@
 "use client";
 
 import { GameShell } from "@/components/game/GameShell";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import { pushRecentTable, setLastOpponent } from "@/lib/names";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, startTransition, useCallback, useEffect, useState } from "react";
+
+/** Backup intervals — realtime is Pusher; shorter only when Pusher fails. */
+const POLL_WITH_PUSHER_MS = 30_000;
+const POLL_FALLBACK_MS = 5_000;
+const POLL_SPECTATOR_MS = 5_000;
 
 type Snapshot = {
   code: string;
@@ -94,7 +100,7 @@ function GamePageInner() {
 
     let channel: ReturnType<ReturnType<typeof getPusherClient>["subscribe"]> | null =
       null;
-    let poll = 0;
+    let stopPoll: (() => void) | null = null;
     const myColor = snap.you;
 
     const refresh = async () => {
@@ -158,16 +164,25 @@ function GamePageInner() {
             router.push(`/game/${data.newCode}`);
           },
         );
-        poll = window.setInterval(() => void refresh(), 12000);
+        stopPoll = startVisibilityAwareInterval(
+          () => void refresh(),
+          POLL_WITH_PUSHER_MS,
+        );
       } catch {
-        poll = window.setInterval(() => void refresh(), 3000);
+        stopPoll = startVisibilityAwareInterval(
+          () => void refresh(),
+          POLL_FALLBACK_MS,
+        );
       }
     } else {
-      poll = window.setInterval(() => void refresh(), 2500);
+      stopPoll = startVisibilityAwareInterval(
+        () => void refresh(),
+        POLL_SPECTATOR_MS,
+      );
     }
 
     return () => {
-      if (poll) window.clearInterval(poll);
+      stopPoll?.();
       if (channel) {
         channel.unbind_all();
         try {

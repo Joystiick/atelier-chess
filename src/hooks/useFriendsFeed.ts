@@ -1,8 +1,12 @@
 "use client";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import { useCallback, useEffect, useState } from "react";
+
+/** Backup poll; Pusher carries realtime. Longer interval cuts idle API burn. */
+const FRIENDS_POLL_MS = 60_000;
 
 export type FriendUser = {
   id: string;
@@ -71,9 +75,12 @@ export function useFriendsFeed() {
     } catch {
       // polling fallback
     }
-    const poll = window.setInterval(() => void refresh(), 20000);
+    const stopPoll = startVisibilityAwareInterval(
+      () => void refresh(),
+      FRIENDS_POLL_MS,
+    );
     return () => {
-      window.clearInterval(poll);
+      stopPoll();
       if (channel) {
         channel.unbind_all();
         try {

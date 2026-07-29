@@ -1,7 +1,11 @@
 "use client";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { useEffect, useRef } from "react";
+
+/** ~90s is enough for "online" UX; pause while Electron/window is hidden. */
+const HEARTBEAT_MS = 90_000;
 
 export function PresenceHeartbeat() {
   const { user } = useAuth();
@@ -26,18 +30,10 @@ export function PresenceHeartbeat() {
       beat("online");
     }
 
-    const id = window.setInterval(() => beat("online"), 45_000);
-
-    const onHide = () => {
-      if (document.visibilityState === "hidden") {
-        // heartbeat only; keep online while tab hidden briefly
-      }
-    };
-    document.addEventListener("visibilitychange", onHide);
+    const stop = startVisibilityAwareInterval(() => beat("online"), HEARTBEAT_MS);
 
     return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onHide);
+      stop();
       sent.current = false;
     };
   }, [user]);

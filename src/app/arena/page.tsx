@@ -3,10 +3,13 @@
 import { UserChip, useAuth } from "@/components/auth/AuthProvider";
 import { playSound } from "@/lib/chess/sound";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+
+const ARENA_POLL_MS = 12_000;
 
 type ArenaRow = {
   id: string;
@@ -65,8 +68,10 @@ export default function ArenaPage() {
   useEffect(() => {
     if (!selected) return;
     void loadArena(selected);
-    const id = window.setInterval(() => void loadArena(selected), 8000);
-    return () => window.clearInterval(id);
+    return startVisibilityAwareInterval(
+      () => void loadArena(selected),
+      ARENA_POLL_MS,
+    );
   }, [selected, loadArena]);
 
   useEffect(() => {

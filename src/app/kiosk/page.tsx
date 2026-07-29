@@ -2,8 +2,11 @@
 
 import { TableQr } from "@/components/game/TableQr";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+
+const KIOSK_POLL_MS = 4_000;
 
 type Slot = {
   token: string;
@@ -67,8 +70,7 @@ export default function KioskPage() {
   useEffect(() => {
     if (!booth) return;
     void poll();
-    const id = window.setInterval(() => void poll(), 2500);
-    return () => window.clearInterval(id);
+    return startVisibilityAwareInterval(() => void poll(), KIOSK_POLL_MS);
   }, [booth, poll]);
 
   return (

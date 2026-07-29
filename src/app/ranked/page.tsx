@@ -8,10 +8,13 @@ import {
   setPreferredTimeControl,
   type TimeControlId,
 } from "@/lib/names";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+
+const QUEUE_POLL_MS = 5_000;
 
 const RANKED_TCS = (Object.keys(TIME_CONTROLS) as TimeControlId[]).filter(
   (id) => id !== "∞",
@@ -50,12 +53,17 @@ export default function RankedPage() {
     if (!authLoading && !user) router.replace("/login?next=/ranked");
   }, [authLoading, user, router]);
 
+  // One-shot: restore queued state after refresh (no continuous idle polling).
   useEffect(() => {
     if (!user) return;
     void poll();
-    const id = window.setInterval(() => void poll(), 4000);
-    return () => window.clearInterval(id);
   }, [user, poll]);
+
+  // Only poll while actively searching — idle lobby was burning function credits.
+  useEffect(() => {
+    if (!user || !queued) return;
+    return startVisibilityAwareInterval(() => void poll(), QUEUE_POLL_MS);
+  }, [user, queued, poll]);
 
   useEffect(() => {
     if (!user) return;

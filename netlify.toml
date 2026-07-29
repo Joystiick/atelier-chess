@@ -1,5 +1,9 @@
 [build]
   command = "npm run build"
+  # Exit 0 = skip build (saves 15 Free-plan credits per production deploy).
+  # Skip when only Electron packaging, GitHub Actions, or markdown changed.
+  # Still builds when public/desktop/latest.json or any web src changes.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':!desktop/src' ':!desktop/build' ':!desktop/electron-builder.yml' ':!desktop/package.json' ':!desktop/package-lock.json' ':!desktop/tsconfig.json' ':!.github' ':!**/*.md' ':!AGENTS.md' ':!CLAUDE.md'"
 
 [dev]
   command = "npm run dev"
@@ -9,3 +13,25 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Long-cache fingerprinted / immutable static assets (CDN + browser).
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/engine/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/pieces/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/desktop/*"
+  [headers.values]
+    # Auto-updater manifest must revalidate; installers can be cached briefly.
+    Cache-Control = "public, max-age=60, must-revalidate"

@@ -1,9 +1,12 @@
 "use client";
 
 import { TableQr } from "@/components/game/TableQr";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+const SALON_POLL_MS = 8_000;
 
 type QueueRow = {
   id: string;
@@ -53,8 +56,7 @@ export default function SalonNightPage() {
 
   useEffect(() => {
     void load();
-    const t = window.setInterval(() => void load(), 4000);
-    return () => window.clearInterval(t);
+    return startVisibilityAwareInterval(() => void load(), SALON_POLL_MS);
   }, [load]);
 
   const act = async (action: string, extra?: Record<string, string>) => {

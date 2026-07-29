@@ -1,9 +1,12 @@
 "use client";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+const NOTIFY_POLL_MS = 90_000;
 
 type Note = {
   id: string;
@@ -52,9 +55,12 @@ export function NotificationBell() {
     } catch {
       // polling fallback
     }
-    const poll = window.setInterval(() => void refresh(), 30_000);
+    const stopPoll = startVisibilityAwareInterval(
+      () => void refresh(),
+      NOTIFY_POLL_MS,
+    );
     return () => {
-      window.clearInterval(poll);
+      stopPoll();
       if (channel) {
         channel.unbind_all();
         try {

@@ -1,10 +1,13 @@
 "use client";
 
 import { InviteQrPanel } from "@/components/game/InviteQrPanel";
+import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+const WATCH_POLL_MS = 8_000;
 
 const REACTIONS = ["👏", "😮", "🔥", "♟️", "☕", "😂"] as const;
 
@@ -40,7 +43,7 @@ export default function WatchPage() {
       setSnap(data);
     };
     void load();
-    const poll = window.setInterval(() => void load(), 3000);
+    const stopPoll = startVisibilityAwareInterval(() => void load(), WATCH_POLL_MS);
 
     let channel: ReturnType<ReturnType<typeof getPusherClient>["subscribe"]> | null =
       null;
@@ -63,7 +66,7 @@ export default function WatchPage() {
 
     return () => {
       cancelled = true;
-      window.clearInterval(poll);
+      stopPoll();
       if (channel) {
         channel.unbind_all();
         try {
