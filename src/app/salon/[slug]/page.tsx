@@ -19,6 +19,10 @@ type QueueRow = {
 
 type PairResult = {
   code: string;
+  tablecast?: boolean;
+  hostPath?: string;
+  watchPath?: string;
+  broadcastPath?: string;
   white: { username: string; seatPath: string };
   black: { username: string; seatPath: string };
 };
@@ -67,6 +71,7 @@ export default function SalonNightPage() {
   const [queue, setQueue] = useState<QueueRow[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [pair, setPair] = useState<PairResult | null>(null);
+  const [featuredCode, setFeaturedCode] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
@@ -92,6 +97,7 @@ export default function SalonNightPage() {
     setIsHost(data.night.isHost);
     setInQueue(data.inQueue);
     setQueue(data.queue ?? []);
+    setFeaturedCode(data.night.featuredGameCode ?? null);
   }, [slug]);
 
   useEffect(() => {
@@ -230,12 +236,72 @@ export default function SalonNightPage() {
         </div>
       )}
 
+      {featuredCode && (
+        <section className="panel space-y-3">
+          <p className="text-xs uppercase tracking-widest text-[var(--brass)]">Stage</p>
+          <p className="font-[family-name:var(--font-display)] text-2xl">
+            Featured table {featuredCode}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/watch/${featuredCode}`} className="btn-ghost">
+              Watch stage
+            </Link>
+            <Link
+              href={`/watch/${featuredCode}?broadcast=1`}
+              className="chip"
+            >
+              OBS broadcast
+            </Link>
+            {isHost && pair && pair.code !== featuredCode && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => void act("feature", { code: pair.code })}
+              >
+                Feature last pair
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       {pair && (
         <section className="panel space-y-4">
-          <p className="text-sm text-[var(--brass)]">Table {pair.code} ready</p>
+          <p className="text-sm text-[var(--brass)]">
+            Tablecast table {pair.code} ready
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {pair.hostPath && (
+              <Link href={pair.hostPath} className="btn-ghost">
+                Host desk
+              </Link>
+            )}
+            {pair.watchPath && (
+              <Link href={pair.watchPath} className="chip">
+                Gallery
+              </Link>
+            )}
+            {pair.broadcastPath && (
+              <Link href={pair.broadcastPath} className="chip">
+                OBS
+              </Link>
+            )}
+            <Link href={`/broadcast/${pair.code}`} className="chip">
+              /broadcast
+            </Link>
+            {isHost && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => void act("feature", { code: pair.code })}
+              >
+                Feature on stage
+              </button>
+            )}
+          </div>
           <div>
             <p className="mb-2 text-xs text-[var(--mist)]">
-              White ┬À {pair.white.username}
+              White · {pair.white.username}
             </p>
             <TableQr
               url={
@@ -249,7 +315,7 @@ export default function SalonNightPage() {
           </div>
           <div>
             <p className="mb-2 text-xs text-[var(--mist)]">
-              Black ┬À {pair.black.username}
+              Black · {pair.black.username}
             </p>
             <TableQr
               url={

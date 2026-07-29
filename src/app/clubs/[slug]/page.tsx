@@ -12,8 +12,12 @@ type Club = {
   slug: string;
   description: string;
   openTableCode: string | null;
+  houseEnabled?: boolean;
   ownerId: string;
   invitePath?: string;
+  hostPath?: string;
+  watchPath?: string;
+  broadcastPath?: string;
 };
 
 type Member = {
@@ -207,7 +211,7 @@ function ClubDetailInner() {
             disabled={busy}
             onClick={() => void openTable()}
           >
-            {club.openTableCode ? "New open table" : "Open table"}
+            {club.openTableCode ? "New House table" : "Open House table"}
           </button>
         )}
         <button
@@ -221,25 +225,42 @@ function ClubDetailInner() {
 
       {joined && (
         <section className="panel mt-4 space-y-2">
-          <h2 className="panel-title">Open table</h2>
+          <h2 className="panel-title">House · Tablecast venue</h2>
           {club.openTableCode ? (
             <>
               <p className="font-mono text-2xl tracking-widest text-[var(--cream)]">
                 {club.openTableCode}
               </p>
               <p className="text-xs text-[var(--mist)]">
-                Persistent club table — share the code or join below.
+                Always-on club House — Tablecast gallery and phone seats welcome.
               </p>
-              <Link
-                href={`/game/${club.openTableCode}`}
-                className="btn-ghost block w-full text-center"
-              >
-                Join open table
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={club.hostPath ?? `/game/${club.openTableCode}`}
+                  className="btn-ghost"
+                >
+                  Sit at House
+                </Link>
+                <Link
+                  href={club.watchPath ?? `/watch/${club.openTableCode}`}
+                  className="chip"
+                >
+                  Watch gallery
+                </Link>
+                <Link
+                  href={
+                    club.broadcastPath ??
+                    `/watch/${club.openTableCode}?broadcast=1`
+                  }
+                  className="chip"
+                >
+                  OBS
+                </Link>
+              </div>
             </>
           ) : (
             <p className="text-sm text-[var(--mist)]">
-              No table open yet. Open one for the club to sit at.
+              No House table open yet. Open one for the club to sit at.
             </p>
           )}
         </section>

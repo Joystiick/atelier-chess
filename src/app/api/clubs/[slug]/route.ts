@@ -3,6 +3,8 @@ import { generateGameCode, generatePlayerToken } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { clubMembers, clubs, games, users } from "@/lib/db/schema";
 import { TIME_CONTROLS } from "@/lib/names";
+import { getPusher, gameChannel } from "@/lib/pusher/server";
+import { tablecastHostPaths } from "@/lib/tablecast/paths";
 import { and, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -65,8 +67,12 @@ export async function GET(_request: Request, { params }: Params) {
       slug: club.slug,
       description: club.description,
       openTableCode: club.openTableCode,
+      houseEnabled: club.houseEnabled ?? true,
       ownerId: club.ownerId,
       invitePath: `/clubs/${club.slug}?invite=1`,
+      ...(club.openTableCode
+        ? tablecastHostPaths(club.openTableCode)
+        : {}),
     },
     members: serialized,
   });
@@ -128,6 +134,7 @@ export async function POST(request: Request, { params }: Params) {
             incrementMs: tc.incMs,
             rated: false,
             clubId: club.id,
+            tablecast: true,
           })
           .returning();
 
@@ -144,10 +151,20 @@ export async function POST(request: Request, { params }: Params) {
           maxAge: 60 * 60 * 24,
         });
 
+        const paths = tablecastHostPaths(row.code, { whiteToken: token });
+        try {
+          await getPusher().trigger(gameChannel(row.code), "tablecast.opened", {
+            code: row.code,
+          });
+        } catch {
+          // optional
+        }
+
         return NextResponse.json({
           ok: true,
           code: row.code,
           color: "w" as const,
+          ...paths,
         });
       } catch {
         code = generateGameCode();

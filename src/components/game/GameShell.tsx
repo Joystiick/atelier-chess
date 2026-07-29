@@ -122,6 +122,8 @@ type GameShellProps =
       ghostLeague?: boolean;
       /** Same-room LAN party badge + sparse polling */
       lanMode?: boolean;
+      /** standard | chess960 | antichess */
+      variant?: string;
       onTablecastChange?: (on: boolean) => void;
       /** Compact phone seat UI for Tablecast */
       phoneController?: boolean;
@@ -1400,6 +1402,11 @@ export function GameShell(props: GameShellProps) {
         <p className="text-center text-xs text-[var(--brass)]">
           {tablecast ? "Tablecast · " : ""}
           {props.mode === "human" && props.lanMode ? "LAN · " : ""}
+          {props.mode === "human" &&
+          props.variant &&
+          props.variant !== "standard"
+            ? `${props.variant === "chess960" ? "Chess960" : props.variant === "antichess" ? "Antichess" : props.variant} · `
+            : ""}
           {title}
           {opening ? ` · ${opening}` : ""}
           {spectator ? " · Spectating" : ""}
@@ -1638,12 +1645,20 @@ export function GameShell(props: GameShellProps) {
                 Copy PGN
               </button>
               {props.mode === "human" && (
-                <Link
-                  href={`/watch/${props.code}`}
-                  className="chip touch-target inline-flex items-center"
-                >
-                  Watch party
-                </Link>
+                <>
+                  <Link
+                    href={`/watch/${props.code}`}
+                    className="chip touch-target inline-flex items-center"
+                  >
+                    Watch party
+                  </Link>
+                  <Link
+                    href={`/watch/${props.code}?overlay=1`}
+                    className="chip touch-target inline-flex items-center"
+                  >
+                    OBS overlay
+                  </Link>
+                </>
               )}
             </div>
           )}

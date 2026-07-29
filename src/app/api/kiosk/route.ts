@@ -7,6 +7,8 @@ import {
 import { db } from "@/lib/db";
 import { games, kioskSessions, users } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
+import { getPusher, gameChannel } from "@/lib/pusher/server";
+import { tablecastHostPaths } from "@/lib/tablecast/paths";
 import { and, eq, like } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -100,6 +102,11 @@ export async function GET(request: Request) {
   const ready = people.every((p) => p.user);
   let pair: {
     code: string;
+    tablecast?: boolean;
+    hostPath?: string;
+    gamePath?: string;
+    watchPath?: string;
+    broadcastPath?: string;
     white: { username: string; seatPath: string };
     black: { username: string; seatPath: string };
   } | null = null;
@@ -110,15 +117,20 @@ export async function GET(request: Request) {
   if (existingCode) {
     const [g] = await db.select().from(games).where(eq(games.code, existingCode)).limit(1);
     if (g?.whiteToken && g.blackToken) {
+      const paths = tablecastHostPaths(g.code, {
+        whiteToken: g.whiteToken,
+        blackToken: g.blackToken,
+      });
       pair = {
         code: g.code,
+        ...paths,
         white: {
           username: g.whiteName ?? "White",
-          seatPath: `/seat/${g.code}?c=w&t=${g.whiteToken}`,
+          seatPath: paths.whiteSeatPath,
         },
         black: {
           username: g.blackName ?? "Black",
-          seatPath: `/seat/${g.code}?c=b&t=${g.blackToken}`,
+          seatPath: paths.blackSeatPath,
         },
       };
     }
@@ -155,6 +167,7 @@ export async function GET(request: Request) {
             timeControlMs: tc.baseMs,
             incrementMs: tc.incMs,
             rated: !anyGuest,
+            tablecast: true,
           })
           .returning();
 
@@ -166,15 +179,28 @@ export async function GET(request: Request) {
             .where(eq(kioskSessions.id, id));
         }
 
+        const paths = tablecastHostPaths(row.code, {
+          whiteToken,
+          blackToken,
+        });
+        try {
+          await getPusher().trigger(gameChannel(row.code), "tablecast.opened", {
+            code: row.code,
+          });
+        } catch {
+          // optional
+        }
+
         pair = {
           code: row.code,
+          ...paths,
           white: {
             username: w.username,
-            seatPath: `/seat/${row.code}?c=w&t=${whiteToken}`,
+            seatPath: paths.whiteSeatPath,
           },
           black: {
             username: bl.username,
-            seatPath: `/seat/${row.code}?c=b&t=${blackToken}`,
+            seatPath: paths.blackSeatPath,
           },
         };
         break;

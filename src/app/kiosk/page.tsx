@@ -16,6 +16,10 @@ type Slot = {
 
 type Pair = {
   code: string;
+  tablecast?: boolean;
+  hostPath?: string;
+  watchPath?: string;
+  broadcastPath?: string;
   white: { username: string; seatPath: string };
   black: { username: string; seatPath: string };
 };
@@ -192,8 +196,25 @@ export default function KioskPage() {
       {pair && (
         <section className="grid gap-6 sm:grid-cols-2">
           <p className="sm:col-span-2 text-center text-[var(--brass)]">
-            Matched · table {pair.code}
+            Tablecast matched · table {pair.code}
           </p>
+          <div className="sm:col-span-2 flex flex-wrap justify-center gap-2">
+            {pair.hostPath && (
+              <Link href={pair.hostPath} className="btn-ghost">
+                Host desk
+              </Link>
+            )}
+            {pair.watchPath && (
+              <Link href={pair.watchPath} className="chip">
+                Gallery
+              </Link>
+            )}
+            {pair.broadcastPath && (
+              <Link href={pair.broadcastPath} className="chip">
+                OBS
+              </Link>
+            )}
+          </div>
           <div className="panel space-y-2 text-center">
             <p className="text-sm">White · {pair.white.username}</p>
             <TableQr

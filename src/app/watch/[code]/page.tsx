@@ -6,8 +6,8 @@ import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import { Chess, type Square } from "chess.js";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 const WATCH_POLL_MS = 30_000;
 const WATCH_POLL_FALLBACK_MS = 8_000;
@@ -88,10 +88,27 @@ function lastMoveFromHistory(fen: string): { from: Square; to: Square } | null {
   }
 }
 
-export default function WatchPage() {
+function WatchPageInner() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /** OBS overlay: `/watch/CODE?overlay=1` or `?broadcast=1` — clean dark chrome */
+  const overlayMode =
+    searchParams.get("overlay") === "1" ||
+    searchParams.get("overlay") === "true" ||
+    searchParams.get("broadcast") === "1" ||
+    searchParams.get("broadcast") === "true";
+
+  useEffect(() => {
+    if (!overlayMode) return;
+    document.documentElement.classList.add("watch-overlay");
+    document.body.classList.add("watch-overlay");
+    return () => {
+      document.documentElement.classList.remove("watch-overlay");
+      document.body.classList.remove("watch-overlay");
+    };
+  }, [overlayMode]);
   const [snap, setSnap] = useState<Snap | null>(null);
   const [error, setError] = useState("");
   const [burst, setBurst] = useState<{ emoji: string; from: string; id: number }[]>([]);
@@ -230,6 +247,47 @@ export default function WatchPage() {
 
   void lastMoveFromHistory;
 
+  if (overlayMode) {
+    return (
+      <main className="watch-overlay-stage grid min-h-screen place-items-center p-3">
+        <div className="w-full max-w-[min(96vw,720px)] space-y-3">
+          <div className="flex items-end justify-between gap-3 px-1 text-[var(--cream)]">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-[var(--brass)]">
+                {snap.tablecast ? "Tablecast" : "Broadcast"}
+              </p>
+              <p className="font-[family-name:var(--font-display)] text-lg leading-tight">
+                {snap.whiteName ?? "White"}
+                <span className="mx-2 text-[var(--mist)]">vs</span>
+                {snap.blackName ?? "Black"}
+              </p>
+            </div>
+            <p className="font-mono text-sm text-[var(--mist)]">
+              {snap.status === "finished"
+                ? "Final"
+                : snap.turn === "w"
+                  ? "White to move"
+                  : "Black to move"}
+            </p>
+          </div>
+          <ChessBoard
+            pieces={pieces}
+            orientation="white"
+            interactive={false}
+            lastMove={lastMove}
+            theme="midnight-brass"
+            vignette={false}
+          />
+          {snap.status === "finished" && snap.result ? (
+            <p className="text-center font-[family-name:var(--font-display)] text-2xl text-[var(--cream)]">
+              {snap.result}
+            </p>
+          ) : null}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="relative mx-auto min-h-screen max-w-lg space-y-4 px-4 py-8">
       <div className="flex items-center justify-between">
@@ -348,5 +406,19 @@ export default function WatchPage() {
 
       <InviteQrPanel code={code} status={snap.status as "waiting" | "active" | "finished"} />
     </main>
+  );
+}
+
+export default function WatchPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
+          Joining watch party…
+        </main>
+      }
+    >
+      <WatchPageInner />
+    </Suspense>
   );
 }

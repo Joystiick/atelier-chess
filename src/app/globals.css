@@ -583,3 +583,29 @@ body.desktop-client .hero-foot {
     transform: none;
   }
 }
+
+/* OBS / broadcast browser source — hide salon chrome */
+html.watch-overlay,
+body.watch-overlay {
+  background: transparent !important;
+}
+
+body.watch-overlay .starfield,
+body.watch-overlay .starfield-layer {
+  display: none !important;
+}
+
+body.watch-overlay .app-shell {
+  background: transparent;
+  min-height: 100vh;
+}
+
+.watch-overlay-stage {
+  background: rgba(4, 8, 6, 0.82);
+}
+
+@supports (background: color(display-p3 0 0 0 / 0.01)) {
+  .watch-overlay-stage {
+    background: rgba(4, 8, 6, 0.78);
+  }
+}

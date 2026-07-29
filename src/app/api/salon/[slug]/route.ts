@@ -4,13 +4,14 @@ import { generateGameCode, generatePlayerToken } from "@/lib/codes";
 import { db } from "@/lib/db";
 import { games, salonNights, salonQueue, users } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
-import { getPusher, userChannel } from "@/lib/pusher/server";
+import { getPusher, gameChannel, userChannel } from "@/lib/pusher/server";
 import {
   isSalonAccepting,
   isSalonChatMode,
   salonWindowStatus,
   themeLabel,
 } from "@/lib/salon/themes";
+import { tablecastHostPaths } from "@/lib/tablecast/paths";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -56,6 +57,7 @@ export async function GET(_request: Request, { params }: Params) {
       chatMode: night.chatMode,
       startsAt: night.startsAt,
       endsAt: night.endsAt,
+      featuredGameCode: night.featuredGameCode ?? null,
       window,
       accepting,
       isHost,
@@ -85,9 +87,10 @@ export async function POST(request: Request, { params }: Params) {
   if (!night) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = (await request.json().catch(() => ({}))) as {
-    action?: "join" | "leave" | "pair" | "close";
+    action?: "join" | "leave" | "pair" | "close" | "feature";
     a?: string;
     b?: string;
+    code?: string;
   };
 
   if (body.action === "join") {
@@ -150,6 +153,29 @@ export async function POST(request: Request, { params }: Params) {
       .set({ status: "closed" })
       .where(eq(salonNights.id, night.id));
     return NextResponse.json({ ok: true });
+  }
+
+  if (body.action === "feature") {
+    if (night.hostId !== me.id) {
+      return NextResponse.json({ error: "Host only" }, { status: 403 });
+    }
+    const code = (body.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
+    if (!/^\d{8}$/.test(code)) {
+      return NextResponse.json({ error: "Invalid table code" }, { status: 400 });
+    }
+    const [g] = await db.select().from(games).where(eq(games.code, code)).limit(1);
+    if (!g || g.salonNightId !== night.id) {
+      return NextResponse.json({ error: "Table not on this salon" }, { status: 404 });
+    }
+    await db
+      .update(salonNights)
+      .set({ featuredGameCode: code })
+      .where(eq(salonNights.id, night.id));
+    return NextResponse.json({
+      ok: true,
+      featuredGameCode: code,
+      ...tablecastHostPaths(code),
+    });
   }
 
   if (body.action === "pair") {
@@ -225,6 +251,7 @@ export async function POST(request: Request, { params }: Params) {
             blindfoldCafe,
             chatMode,
             rated: false,
+            tablecast: true,
             joinTicket: null,
           })
           .returning();
@@ -233,6 +260,16 @@ export async function POST(request: Request, { params }: Params) {
           .update(salonQueue)
           .set({ status: "seated" })
           .where(inArray(salonQueue.id, [qa.id, qb.id]));
+
+        await db
+          .update(salonNights)
+          .set({ featuredGameCode: row.code })
+          .where(eq(salonNights.id, night.id));
+
+        const paths = tablecastHostPaths(row.code, {
+          whiteToken,
+          blackToken,
+        });
 
         try {
           const pusher = getPusher();
@@ -246,19 +283,23 @@ export async function POST(request: Request, { params }: Params) {
             color: "b",
             token: blackToken,
           });
+          await pusher.trigger(gameChannel(row.code), "tablecast.opened", {
+            code: row.code,
+          });
         } catch {
           // optional
         }
 
         return NextResponse.json({
           code: row.code,
+          ...paths,
           white: {
             username: ua.username,
-            seatPath: `/seat/${row.code}?c=w&t=${whiteToken}`,
+            seatPath: paths.whiteSeatPath,
           },
           black: {
             username: ub.username,
-            seatPath: `/seat/${row.code}?c=b&t=${blackToken}`,
+            seatPath: paths.blackSeatPath,
           },
         });
       } catch {
