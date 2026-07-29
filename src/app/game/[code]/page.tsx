@@ -37,6 +37,7 @@ type Snapshot = {
   spectatorCount?: number;
   ghostLeague?: boolean;
   lanMode?: boolean;
+  variant?: string;
 };
 
 function GamePageInner() {
@@ -59,6 +60,7 @@ function GamePageInner() {
   const [phoneController, setPhoneController] = useState(false);
   const [ghostLeague, setGhostLeague] = useState(false);
   const [lanMode, setLanMode] = useState(false);
+  const [variant, setVariant] = useState("standard");
 
   const applySnapshot = useCallback((data: Snapshot) => {
     startTransition(() => {
@@ -72,6 +74,7 @@ function GamePageInner() {
       setTablecast(Boolean(data.tablecast));
       setGhostLeague(Boolean(data.ghostLeague));
       setLanMode(Boolean(data.lanMode));
+      setVariant(data.variant ?? "standard");
       if (typeof data.spectatorCount === "number") {
         setSpectatorCount(data.spectatorCount);
       }
@@ -482,6 +485,7 @@ function GamePageInner() {
         spectatorCount={spectatorCount}
         ghostLeague={ghostLeague}
         lanMode={lanMode}
+        variant={variant}
         phoneController={phoneController && tablecast && !isSpectator}
         onTablecastChange={setTablecast}
       />

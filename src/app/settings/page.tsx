@@ -9,6 +9,7 @@ import {
   isThemeUnlocked,
   setAmbient,
   setBoardTheme,
+  setPassCache,
   setSoundEnabled,
   type AmbientMode,
   type BoardTheme,
@@ -51,6 +52,10 @@ export default function SettingsPage() {
   const [mood, setMoodState] = useState<MoodId | "">("");
   const [ambient, setAmbientState] = useState<AmbientMode>("off");
   const [saved, setSaved] = useState(false);
+  const [passActive, setPassActive] = useState(false);
+  const [passMsg, setPassMsg] = useState("");
+  const [updateMsg, setUpdateMsg] = useState("");
+  const [themeTick, setThemeTick] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login?next=/settings");
@@ -67,7 +72,51 @@ export default function SettingsPage() {
     setBoardThemeState(getBoardTheme());
     setMoodState(getMood() ?? "");
     setAmbientState(getAmbient());
+    void fetch("/api/pass")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.pass) {
+          setPassActive(Boolean(d.pass.active));
+          setPassCache(Boolean(d.pass.active), d.pass.cosmetics ?? []);
+          setThemeTick((n) => n + 1);
+        }
+      })
+      .catch(() => {
+        // optional
+      });
   }, []);
+
+  const activatePassPreview = async () => {
+    setPassMsg("");
+    const res = await fetch("/api/pass", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "preview-activate" }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setPassMsg(data.error ?? "Could not activate");
+      return;
+    }
+    setPassActive(true);
+    setPassCache(true, data.pass?.cosmetics ?? []);
+    setThemeTick((n) => n + 1);
+    setPassMsg("Atelier Pass soft-unlocked (cosmetics only).");
+  };
+
+  const checkDesktopUpdate = () => {
+    const bridge = window.atelierDesktop;
+    if (!bridge?.checkForUpdates) {
+      setUpdateMsg(
+        bridge
+          ? "Updater bridge not available in this build."
+          : "Open Settings from the desktop app to check updates.",
+      );
+      return;
+    }
+    void bridge.checkForUpdates();
+    setUpdateMsg("Checking for updates…");
+  };
 
   const persist = () => {
     setSoundEnabled(sound);
@@ -120,6 +169,7 @@ export default function SettingsPage() {
   const unlockedThemes = (Object.keys(BOARD_THEMES) as BoardTheme[]).filter(
     isThemeUnlocked,
   );
+  void themeTick;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 px-4 py-10">
@@ -132,6 +182,41 @@ export default function SettingsPage() {
 
       <h1 className="font-[family-name:var(--font-display)] text-4xl">Settings</h1>
       <p className="text-[var(--mist)]">Local preferences for the board and salon.</p>
+
+      <section className="panel space-y-3">
+        <p className="panel-title">Atelier Pass</p>
+        <p className="text-sm text-[var(--mist)]">
+          Soft cosmetics unlock — never pay-to-win. Stripe checkout hooks ready when billing is
+          configured.
+        </p>
+        <p className="text-sm text-[var(--brass)]">
+          {passActive ? "Pass active on this account" : "Pass inactive"}
+        </p>
+        {!passActive && (
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            onClick={() => void activatePassPreview()}
+          >
+            Preview unlock (soft)
+          </button>
+        )}
+        {passMsg && <p className="text-xs text-[var(--mist)]">{passMsg}</p>}
+      </section>
+
+      {typeof window !== "undefined" && window.atelierDesktop ? (
+        <section className="panel space-y-3">
+          <p className="panel-title">Desktop updates</p>
+          <p className="text-sm text-[var(--mist)]">
+            Unsigned betas soft-fail update checks. Signed releases install when a feed is
+            published.
+          </p>
+          <button type="button" className="btn-ghost w-full" onClick={checkDesktopUpdate}>
+            Check for updates
+          </button>
+          {updateMsg && <p className="text-xs text-[var(--mist)]">{updateMsg}</p>}
+        </section>
+      ) : null}
 
       <section className="panel space-y-3">
         <Toggle label="Sound" value={sound} onChange={setSound} />

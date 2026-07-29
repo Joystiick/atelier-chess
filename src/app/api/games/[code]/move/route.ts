@@ -1,8 +1,12 @@
 import { isValidCode } from "@/lib/codes";
+import {
+  isGameVariant,
+  tryVariantMove,
+  variantEndState,
+} from "@/lib/chess/variants";
 import { db } from "@/lib/db";
 import { games, moves } from "@/lib/db/schema";
 import { gameChannel, getPusher } from "@/lib/pusher/server";
-import { Chess } from "chess.js";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -44,16 +48,15 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "Not your turn" }, { status: 409 });
   }
 
-  const chess = new Chess(game.fen);
+  const variant = isGameVariant(game.variant) ? game.variant : "standard";
   const from = uci.slice(0, 2);
   const to = uci.slice(2, 4);
   const promotion = uci[4] as "q" | "r" | "b" | "n" | undefined;
-  let move;
-  try {
-    move = chess.move({ from, to, promotion });
-  } catch {
-    return NextResponse.json({ error: "Illegal move" }, { status: 400 });
+  const applied = tryVariantMove(game.fen, variant, { from, to, promotion });
+  if (!applied.ok) {
+    return NextResponse.json({ error: applied.error }, { status: 400 });
   }
+  const { chess, move } = applied;
   if (!move) return NextResponse.json({ error: "Illegal move" }, { status: 400 });
 
   const elapsed = Math.max(0, Date.now() - new Date(game.updatedAt).getTime());
@@ -76,13 +79,11 @@ export async function POST(request: Request, { params }: Params) {
     status = "finished";
     winner = whiteClockMs <= 0 ? "b" : "w";
     result = `Flag — ${winner === "w" ? "White" : "Black"} wins on time`;
-  } else if (chess.isCheckmate()) {
-    status = "finished";
-    winner = color;
-    result = `Checkmate — ${color === "w" ? "White" : "Black"} wins`;
-  } else if (chess.isDraw()) {
-    status = "finished";
-    result = chess.isStalemate() ? "Stalemate" : "Draw";
+  } else {
+    const end = variantEndState(chess, variant, color);
+    status = end.status;
+    winner = end.winner;
+    result = end.result;
   }
 
   const ply = chess.history().length;

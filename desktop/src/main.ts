@@ -373,6 +373,16 @@ function setupAutoUpdater(): void {
   });
   autoUpdater.on("update-available", (info) => {
     console.info("[updater] update available:", info.version);
+    void dialog.showMessageBox({
+      type: "info",
+      title: "Update available",
+      message: `Atelier Chess ${info.version} is downloading.`,
+      detail:
+        "Signed builds install automatically when ready. Unsigned betas may soft-fail — see docs/desktop-updates.md.",
+    });
+  });
+  autoUpdater.on("update-not-available", () => {
+    // Quiet unless user-initiated path already handled below
   });
   autoUpdater.on("update-downloaded", (info) => {
     console.info("[updater] update downloaded:", info.version);
@@ -405,7 +415,18 @@ async function checkForUpdates(userInitiated: boolean): Promise<void> {
     return;
   }
   try {
-    await autoUpdater.checkForUpdates();
+    const result = await autoUpdater.checkForUpdates();
+    if (userInitiated && result?.updateInfo) {
+      // update-available handler may also fire; avoid double dialogs when none
+    } else if (userInitiated && !result?.updateInfo) {
+      void dialog.showMessageBox({
+        type: "info",
+        title: "Up to date",
+        message: "You're on the latest packaged build (or no feed is configured yet).",
+        detail:
+          "Without code signing / a published latest.yml feed, checks soft-fail. See docs/desktop-updates.md.",
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[updater] check failed (soft):", message);
@@ -415,7 +436,7 @@ async function checkForUpdates(userInitiated: boolean): Promise<void> {
         title: "Update check failed",
         message:
           "Could not check for updates. This is normal for unsigned betas or when no release feed is published yet.",
-        detail: message,
+        detail: `${message}\n\nSee docs/desktop-updates.md for signing notes.`,
       });
     }
   }
@@ -460,6 +481,10 @@ if (!gotLock) {
 
   ipcMain.on("atelier:quit", () => {
     app.quit();
+  });
+
+  ipcMain.on("atelier:check-updates", () => {
+    void checkForUpdates(true);
   });
 
   app.whenReady().then(() => {

@@ -4,6 +4,7 @@ import {
   generatePlayerToken,
   isValidCode,
 } from "@/lib/codes";
+import { isGameVariant, startingFen } from "@/lib/chess/variants";
 import { db } from "@/lib/db";
 import { games } from "@/lib/db/schema";
 import { gameChannel, getPusher } from "@/lib/pusher/server";
@@ -43,6 +44,9 @@ export async function POST(request: Request, { params }: Params) {
     (color === "b" && token === game.blackToken);
   if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const variant = isGameVariant(game.variant) ? game.variant : "standard";
+  const rematchFen = startingFen(variant);
+
   // Ghost rematch: open waiting table with one-time ticket for the other device/player
   if (body.ghost) {
     const myToken = generatePlayerToken();
@@ -56,6 +60,7 @@ export async function POST(request: Request, { params }: Params) {
           .values({
             code: newCode,
             status: "waiting",
+            fen: rematchFen,
             whiteName: color === "w" ? game.whiteName : game.blackName,
             whiteToken: myToken,
             whiteUserId: color === "w" ? game.whiteUserId : game.blackUserId,
@@ -63,10 +68,11 @@ export async function POST(request: Request, { params }: Params) {
             blackClockMs: game.timeControlMs,
             timeControlMs: game.timeControlMs,
             incrementMs: game.incrementMs,
-            rated: game.rated,
+            rated: game.rated && variant === "standard",
             blindfoldCafe: game.blindfoldCafe,
             tablecast: game.tablecast,
             lanMode: game.lanMode,
+            variant,
             ghostLeague: true,
             joinTicket,
           })
@@ -106,6 +112,7 @@ export async function POST(request: Request, { params }: Params) {
         .values({
           code: newCode,
           status: "active",
+          fen: rematchFen,
           whiteName: game.blackName,
           blackName: game.whiteName,
           whiteToken,
@@ -116,10 +123,11 @@ export async function POST(request: Request, { params }: Params) {
           blackClockMs: game.timeControlMs,
           timeControlMs: game.timeControlMs,
           incrementMs: game.incrementMs,
-          rated: game.rated,
+          rated: game.rated && variant === "standard",
           blindfoldCafe: game.blindfoldCafe,
           tablecast: game.tablecast,
           lanMode: game.lanMode,
+          variant,
           joinTicket: null,
         })
         .returning();

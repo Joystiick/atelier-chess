@@ -5,6 +5,8 @@ export type AtelierDesktopBridge = {
   version: string;
   openExternal: (url: string) => void | Promise<void>;
   quit: () => void;
+  /** Soft update check — unsigned builds report failure without crashing. */
+  checkForUpdates?: () => void | Promise<void>;
 };
 
 declare global {

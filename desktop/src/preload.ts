@@ -7,6 +7,7 @@ export type AtelierDesktopBridge = {
   version: string;
   openExternal: (url: string) => Promise<void>;
   quit: () => void;
+  checkForUpdates: () => void;
 };
 
 function readDesktopVersion(): string {
@@ -34,6 +35,9 @@ const bridge: AtelierDesktopBridge = {
   },
   quit: () => {
     ipcRenderer.send("atelier:quit");
+  },
+  checkForUpdates: () => {
+    ipcRenderer.send("atelier:check-updates");
   },
 };
 

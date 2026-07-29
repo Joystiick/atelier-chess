@@ -145,7 +145,23 @@ export function bumpGamesPlayed() {
 }
 
 export function isThemeUnlocked(theme: BoardTheme): boolean {
-  return getGamesPlayed() >= BOARD_THEMES[theme].unlockAt;
+  if (getGamesPlayed() >= BOARD_THEMES[theme].unlockAt) return true;
+  try {
+    const pass = ls()?.getItem("atelier.passActive") === "1";
+    const cosmetics = JSON.parse(ls()?.getItem("atelier.passCosmetics") ?? "[]") as string[];
+    if (pass || cosmetics.includes(theme)) {
+      // Pass soft unlock for mid/high unlock themes
+      if (BOARD_THEMES[theme].unlockAt > 0) return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+export function setPassCache(active: boolean, cosmetics: string[]) {
+  ls()?.setItem("atelier.passActive", active ? "1" : "0");
+  ls()?.setItem("atelier.passCosmetics", JSON.stringify(cosmetics));
 }
 
 export function getAmbient(): AmbientMode {
