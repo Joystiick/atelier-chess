@@ -50,6 +50,25 @@ export default function HowToPage() {
           </li>
         </ul>
         <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
+          Variants café
+        </h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Weekly special rotates Chess960 and antichess (café lite — capture
+            mandatory when available).
+          </li>
+          <li>Variant tables are unrated. Chess960 shuffles the back rank; castling is best-effort.</li>
+        </ul>
+        <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
+          Watch &amp; broadcast
+        </h2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Open <code className="text-[var(--brass)]">/watch/CODE?overlay=1</code>{" "}
+            (or <code className="text-[var(--brass)]">/broadcast/CODE</code>) for an OBS-friendly board.
+          </li>
+        </ul>
+        <h2 className="font-[family-name:var(--font-display)] text-xl text-[var(--cream)]">
           Board controls
         </h2>
         <ul className="list-disc space-y-1 pl-5">

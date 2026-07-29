@@ -88,7 +88,10 @@ export default function ProfilePage() {
         </span>
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-3xl">{user.username}</h1>
-          <p className="text-[var(--brass)]">Elo {user.elo}</p>
+          <p className="text-[var(--brass)]">
+            Elo {user.elo}
+            {user.atelierPass ? " · Atelier Pass" : ""}
+          </p>
           <p className="text-sm text-[var(--mist)]">
             {user.gamesPlayed} games ┬À {user.email}
           </p>

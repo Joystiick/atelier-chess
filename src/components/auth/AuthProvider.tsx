@@ -21,6 +21,7 @@ export type AuthUser = {
   gamesPlayed: number;
   seasonElo?: number;
   seasonKey?: string;
+  atelierPass?: boolean;
 };
 
 type AuthCtx = {
@@ -87,6 +88,11 @@ export function UserChip() {
       <a href="/profile" className="chip inline-flex items-center gap-2">
         <span aria-hidden>{avatarEmoji(user.avatarId)}</span>
         <span>{user.username}</span>
+        {user.atelierPass ? (
+          <span className="text-[10px] uppercase tracking-wider text-[var(--brass)]">
+            Pass
+          </span>
+        ) : null}
         <span className="text-[var(--brass)]">{user.elo}</span>
       </a>
     </span>

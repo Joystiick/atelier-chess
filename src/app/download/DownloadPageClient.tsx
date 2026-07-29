@@ -135,6 +135,14 @@ export default function DownloadPageClient() {
         Install Atelier on your computer. Multiplayer, accounts, and AI stay on
         the same cloud as the browser app.
       </p>
+      <p className="mt-2 text-sm text-[var(--mist)]">
+        Auto-update soft-fails on unsigned betas until code signing + a release
+        feed are configured. See{" "}
+        <Link href="/how-to" className="text-[var(--brass)]">
+          how to play
+        </Link>{" "}
+        notes and the desktop-updates docs in the repo.
+      </p>
 
       {latest ? (
         <p className="mt-4 text-sm text-[var(--brass)]">
