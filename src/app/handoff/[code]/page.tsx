@@ -8,6 +8,8 @@ function HandoffInner() {
   const params = useParams<{ code: string }>();
   const search = useSearchParams();
   const handoff = search.get("h") ?? "";
+  /** Default stays `/game`; phone companion uses `next=remote`. */
+  const nextDest = search.get("next") === "remote" ? "remote" : "game";
   const code = (params.code ?? "").replace(/\D/g, "").padStart(8, "0").slice(-8);
   const router = useRouter();
   const [error, setError] = useState("");
@@ -25,24 +27,29 @@ function HandoffInner() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Handoff failed");
-        router.replace(`/game/${code}`);
+        router.replace(
+          nextDest === "remote" ? `/remote/${code}` : `/game/${code}`,
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Handoff failed");
       }
     };
     void run();
-  }, [code, handoff, router]);
+  }, [code, handoff, nextDest, router]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
       <p className="text-xs uppercase tracking-[0.25em] text-[var(--brass)]">Seat handoff</p>
       <h1 className="font-[family-name:var(--font-display)] text-3xl">Table {code}</h1>
-      {!error && <p className="text-[var(--mist)]">Moving your seat to this device…</p>}
+      {!error && <p className="text-[var(--mist)]">Moving your seat to this deviceÔÇª</p>}
       {error && (
         <>
           <p className="text-red-300">{error}</p>
-          <Link href={`/game/${code}`} className="btn-primary">
-            Open table
+          <Link
+            href={nextDest === "remote" ? `/remote/${code}` : `/game/${code}`}
+            className="btn-primary"
+          >
+            Open {nextDest === "remote" ? "remote" : "table"}
           </Link>
         </>
       )}
@@ -55,7 +62,7 @@ export default function HandoffPage() {
     <Suspense
       fallback={
         <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-          Handoff…
+          HandoffÔÇª
         </main>
       }
     >

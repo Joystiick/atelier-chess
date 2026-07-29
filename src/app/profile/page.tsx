@@ -2,6 +2,12 @@
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { AVATARS, avatarEmoji, type AvatarId } from "@/lib/auth/avatars";
+import {
+  effectiveSeasonElo,
+  formatSeasonLabel,
+  softRankForSeasonElo,
+} from "@/lib/ghostLeague";
+import { currentSeasonKey } from "@/lib/prefs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -45,16 +51,25 @@ export default function ProfilePage() {
   if (loading || !user) {
     return (
       <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-        Loading…
+        LoadingÔÇª
       </main>
     );
   }
+
+  const season = currentSeasonKey();
+  const seasonScore = effectiveSeasonElo(
+    user.seasonKey ?? "",
+    user.seasonElo ?? 1200,
+    season,
+  );
+  const softRank = softRankForSeasonElo(seasonScore);
+  const inSeason = (user.seasonKey ?? "") === season;
 
   return (
     <main className="mx-auto max-w-md px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/" className="text-sm text-[var(--mist)] hover:text-[var(--brass)]">
-          ← Atelier
+          ÔåÉ Atelier
         </Link>
         <button
           type="button"
@@ -75,16 +90,34 @@ export default function ProfilePage() {
           <h1 className="font-[family-name:var(--font-display)] text-3xl">{user.username}</h1>
           <p className="text-[var(--brass)]">Elo {user.elo}</p>
           <p className="text-sm text-[var(--mist)]">
-            {user.gamesPlayed} games · {user.email}
+            {user.gamesPlayed} games ┬À {user.email}
           </p>
           <Link
             href={`/challenge/${encodeURIComponent(user.username)}`}
             className="mt-2 inline-block text-sm text-[var(--brass)]"
           >
-            Challenge card →
+            Challenge card ÔåÆ
           </Link>
         </div>
       </div>
+
+      <section className="panel mt-8 space-y-2">
+        <h2 className="panel-title">Ghost League</h2>
+        <p className="text-sm text-[var(--mist)]">
+          Soft seasonal ladder from ghost rematch ┬À {formatSeasonLabel(season)}
+        </p>
+        <p className="text-[var(--cream)]">
+          {softRank.label}{" "}
+          <span className="text-[var(--brass)]">{seasonScore}</span>
+        </p>
+        <p className="text-xs text-[var(--mist)]">
+          Season {season}
+          {inSeason ? "" : " ┬À fresh start this month"}
+        </p>
+        <Link href="/ghost-league" className="inline-block text-sm text-[var(--brass)]">
+          Your standings ÔåÆ
+        </Link>
+      </section>
 
       <section className="mt-8 space-y-3">
         <h2 className="panel-title">Edit profile</h2>
@@ -118,7 +151,7 @@ export default function ProfilePage() {
           disabled={busy}
           onClick={() => void save()}
         >
-          {busy ? "Saving…" : "Save profile"}
+          {busy ? "SavingÔÇª" : "Save profile"}
         </button>
         <Link href="/play" className="btn-ghost block w-full text-center">
           Play

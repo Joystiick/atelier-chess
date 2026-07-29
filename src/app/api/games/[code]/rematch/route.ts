@@ -66,6 +66,7 @@ export async function POST(request: Request, { params }: Params) {
             rated: game.rated,
             blindfoldCafe: game.blindfoldCafe,
             tablecast: game.tablecast,
+            ghostLeague: true,
             joinTicket,
           })
           .returning();
@@ -81,6 +82,7 @@ export async function POST(request: Request, { params }: Params) {
           code: row.code,
           color: "w" as const,
           ghost: true,
+          ghostLeague: true,
           joinTicket,
           tablecast: row.tablecast,
         });

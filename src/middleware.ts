@@ -26,12 +26,17 @@ const AUTH_PREFIXES = [
   "/handoff",
   "/seat",
   "/watch",
+  "/remote",
+  "/ghost-league",
 ];
 
 /**
  * Lobby / client surfaces — desktop app only.
- * Phone QR flows (/join, /game, /watch, /handoff, /seat) stay on the web.
+ * Phone QR flows (/join, /game, /watch, /handoff, /seat, /remote, /salon/[slug]) stay on the web.
+ * Host create desk (/salon exact) stays desktop-preferred.
  */
+const DESKTOP_ONLY_EXACT = ["/salon"];
+
 const DESKTOP_ONLY_PREFIXES = [
   "/play",
   "/ai",
@@ -48,13 +53,18 @@ const DESKTOP_ONLY_PREFIXES = [
   "/settings",
   "/puzzle",
   "/puzzles",
-  "/salon",
   "/kiosk",
   "/challenge",
+  "/ghost-league",
 ];
 
 function matchesPrefix(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function isDesktopOnlyPath(pathname: string) {
+  if (DESKTOP_ONLY_EXACT.includes(pathname)) return true;
+  return matchesPrefix(pathname, DESKTOP_ONLY_PREFIXES);
 }
 
 function isDesktopClient(request: NextRequest) {
@@ -75,29 +85,31 @@ function secretKey() {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (matchesPrefix(pathname, DESKTOP_ONLY_PREFIXES) && !isDesktopClient(request)) {
+  if (isDesktopOnlyPath(pathname) && !isDesktopClient(request)) {
     const downloadUrl = new URL("/download", request.url);
     downloadUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(downloadUrl);
   }
 
-  const needsAuth = matchesPrefix(pathname, AUTH_PREFIXES);
-  if (!needsAuth) return NextResponse.next();
+  if (!matchesPrefix(pathname, AUTH_PREFIXES)) {
+    return NextResponse.next();
+  }
 
   const token = request.cookies.get("atelier_session")?.value;
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("next", pathname + request.nextUrl.search);
-
   if (!token) {
-    return NextResponse.redirect(loginUrl);
+    const login = new URL("/login", request.url);
+    login.searchParams.set("next", pathname);
+    return NextResponse.redirect(login);
   }
 
   try {
     await jwtVerify(token, secretKey());
     return NextResponse.next();
   } catch {
-    const res = NextResponse.redirect(loginUrl);
-    res.cookies.set("atelier_session", "", { path: "/", maxAge: 0 });
+    const login = new URL("/login", request.url);
+    login.searchParams.set("next", pathname);
+    const res = NextResponse.redirect(login);
+    res.cookies.delete("atelier_session");
     return res;
   }
 }
@@ -106,7 +118,9 @@ export const config = {
   matcher: [
     "/play",
     "/play/:path*",
+    "/ai",
     "/ai/:path*",
+    "/game",
     "/game/:path*",
     "/join",
     "/join/:path*",
@@ -148,5 +162,9 @@ export const config = {
     "/seat/:path*",
     "/watch",
     "/watch/:path*",
+    "/remote",
+    "/remote/:path*",
+    "/ghost-league",
+    "/ghost-league/:path*",
   ],
 };

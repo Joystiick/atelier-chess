@@ -1,9 +1,16 @@
 import { requireUser } from "@/lib/auth/requireUser";
 import { generateGameCode } from "@/lib/codes";
 import { db } from "@/lib/db";
-import { salonNights, salonQueue } from "@/lib/db/schema";
+import { salonNights } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
-import { and, asc, eq } from "drizzle-orm";
+import {
+  isSalonChatMode,
+  isSalonTheme,
+  parseOptionalIso,
+  SALON_PRESETS,
+  type SalonPresetId,
+} from "@/lib/salon/themes";
+import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 function slugify(name: string) {
@@ -34,12 +41,41 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     timeControl?: TimeControlId;
+    preset?: string;
+    theme?: string;
+    chatMode?: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
   };
-  const name = (body.name ?? "Salon night").trim().slice(0, 48) || "Salon night";
-  const tcId =
-    body.timeControl && body.timeControl in TIME_CONTROLS
-      ? body.timeControl
-      : ("10|0" as TimeControlId);
+
+  const presetId = (
+    body.preset && body.preset in SALON_PRESETS ? body.preset : "open"
+  ) as SalonPresetId;
+  const preset = SALON_PRESETS[presetId];
+
+  const theme = isSalonTheme(body.theme) ? body.theme : preset.theme;
+  const chatMode = isSalonChatMode(body.chatMode)
+    ? body.chatMode
+    : preset.chatMode;
+
+  const name =
+    (body.name ?? preset.defaultName).trim().slice(0, 48) || preset.defaultName;
+
+  let tcId: TimeControlId = preset.timeControl;
+  if (theme === "bullet") {
+    tcId = "3|2";
+  } else if (body.timeControl && body.timeControl in TIME_CONTROLS) {
+    tcId = body.timeControl;
+  }
+
+  const startsAt = parseOptionalIso(body.startsAt);
+  const endsAt = parseOptionalIso(body.endsAt);
+  if (startsAt && endsAt && endsAt <= startsAt) {
+    return NextResponse.json(
+      { error: "End must be after start" },
+      { status: 400 },
+    );
+  }
 
   const [night] = await db
     .insert(salonNights)
@@ -48,6 +84,10 @@ export async function POST(request: Request) {
       name,
       hostId: me.id,
       timeControl: tcId,
+      theme,
+      chatMode,
+      startsAt,
+      endsAt,
       status: "open",
     })
     .returning();

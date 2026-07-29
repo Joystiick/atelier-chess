@@ -6,6 +6,7 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { AI_ELO } from "@/lib/chess/banter";
+import { softRankForSeasonElo } from "@/lib/ghostLeague";
 import { currentSeasonKey } from "@/lib/prefs";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
     result?: "win" | "loss" | "draw";
     opponentElo?: number;
     opponent?: "easy" | "medium" | "hard" | "human";
+    /** Ghost League soft ladder ÔÇö only then touch seasonElo */
+    ghostLeague?: boolean;
   };
 
   if (!body.result) {
@@ -40,15 +43,22 @@ export async function POST(request: Request) {
 
   const season = currentSeasonKey();
   const seasonBase = row.seasonKey === season ? row.seasonElo : 1200;
-  const seasonExpected = 1 / (1 + 10 ** ((opp - seasonBase) / 400));
-  const nextSeasonElo = Math.round(seasonBase + 24 * (score - seasonExpected));
+  const updateGhostSeason = Boolean(body.ghostLeague);
+  let nextSeasonElo = seasonBase;
+  let seasonDelta = 0;
+  if (updateGhostSeason) {
+    const seasonExpected = 1 / (1 + 10 ** ((opp - seasonBase) / 400));
+    nextSeasonElo = Math.round(seasonBase + 24 * (score - seasonExpected));
+    seasonDelta = nextSeasonElo - seasonBase;
+  }
 
   const [updated] = await db
     .update(users)
     .set({
       elo: nextElo,
-      seasonElo: nextSeasonElo,
-      seasonKey: season,
+      ...(updateGhostSeason
+        ? { seasonElo: nextSeasonElo, seasonKey: season }
+        : {}),
       gamesPlayed: row.gamesPlayed + 1,
       updatedAt: new Date(),
     })
@@ -57,9 +67,21 @@ export async function POST(request: Request) {
 
   const pub = publicUser(updated);
   await setSessionCookie(pub);
+
+  const softRank = softRankForSeasonElo(
+    updateGhostSeason ? updated.seasonElo : seasonBase,
+  );
+
   return NextResponse.json({
     user: pub,
     seasonElo: updated.seasonElo,
     seasonKey: updated.seasonKey,
+    ...(updateGhostSeason
+      ? {
+          seasonDelta,
+          softRank: softRank.label,
+          softRankId: softRank.id,
+        }
+      : {}),
   });
 }

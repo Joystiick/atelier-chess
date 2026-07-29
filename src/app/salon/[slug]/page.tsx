@@ -2,6 +2,7 @@
 
 import { TableQr } from "@/components/game/TableQr";
 import { startVisibilityAwareInterval } from "@/lib/poll";
+import type { SalonWindowStatus } from "@/lib/salon/themes";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -22,11 +23,45 @@ type PairResult = {
   black: { username: string; seatPath: string };
 };
 
+function formatWhen(iso: string | null | undefined) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function windowCopy(
+  window: SalonWindowStatus,
+  startsAt?: string | null,
+  endsAt?: string | null,
+) {
+  if (window === "opens_at") {
+    const when = formatWhen(startsAt);
+    return when ? `Opens at ${when}` : "Opens soon";
+  }
+  if (window === "closed") {
+    const when = formatWhen(endsAt);
+    return when ? `Closed ┬À ended ${when}` : "Closed";
+  }
+  return "Lobby open";
+}
+
 export default function SalonNightPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
   const [name, setName] = useState("");
   const [status, setStatus] = useState("open");
+  const [themeLabel, setThemeLabel] = useState("Salon");
+  const [windowStatus, setWindowStatus] = useState<SalonWindowStatus>("open");
+  const [accepting, setAccepting] = useState(true);
+  const [startsAt, setStartsAt] = useState<string | null>(null);
+  const [endsAt, setEndsAt] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [inQueue, setInQueue] = useState(false);
   const [queue, setQueue] = useState<QueueRow[]>([]);
@@ -49,6 +84,11 @@ export default function SalonNightPage() {
     }
     setName(data.night.name);
     setStatus(data.night.status);
+    setThemeLabel(data.night.themeLabel ?? "Salon");
+    setWindowStatus(data.night.window ?? "open");
+    setAccepting(Boolean(data.night.accepting));
+    setStartsAt(data.night.startsAt ?? null);
+    setEndsAt(data.night.endsAt ?? null);
     setIsHost(data.night.isHost);
     setInQueue(data.inQueue);
     setQueue(data.queue ?? []);
@@ -97,13 +137,29 @@ export default function SalonNightPage() {
 
   return (
     <main className="mx-auto max-w-lg space-y-6 px-4 py-10">
-      <Link href="/salon" className="text-sm text-[var(--mist)]">
-        ← Salon desk
-      </Link>
-      <h1 className="font-[family-name:var(--font-display)] text-4xl">{name || "Salon"}</h1>
-      <p className="text-sm text-[var(--mist)]">
-        {status === "open" ? "Lobby open" : "Closed"} · {queue.length} waiting
-      </p>
+      {isHost ? (
+        <Link href="/salon" className="text-sm text-[var(--mist)]">
+          ÔåÉ Salon desk
+        </Link>
+      ) : (
+        <p className="text-sm text-[var(--mist)]">Salon lobby</p>
+      )}
+      <div className="space-y-2">
+        <h1 className="font-[family-name:var(--font-display)] text-4xl">
+          {name || "Salon"}
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="chip">{themeLabel}</span>
+          <span className="text-sm text-[var(--mist)]">
+            {windowCopy(windowStatus, startsAt, endsAt)} ┬À {queue.length} waiting
+          </span>
+        </div>
+        {status === "open" && windowStatus === "opens_at" && startsAt && (
+          <p className="text-xs text-[var(--mist)]">
+            Queue opens {formatWhen(startsAt)}.
+          </p>
+        )}
+      </div>
 
       {isHost && (
         <div className="panel space-y-3">
@@ -112,7 +168,7 @@ export default function SalonNightPage() {
         </div>
       )}
 
-      {!isHost && status === "open" && (
+      {!isHost && accepting && (
         <button
           type="button"
           className="btn-primary w-full"
@@ -120,6 +176,14 @@ export default function SalonNightPage() {
         >
           {inQueue ? "Leave queue" : "Join lobby queue"}
         </button>
+      )}
+
+      {!isHost && !accepting && (
+        <p className="panel text-sm text-[var(--mist)]">
+          {windowStatus === "opens_at"
+            ? "This night has not opened yet ÔÇö check back at the start time."
+            : "This salon is closed. Ask the host for the next night."}
+        </p>
       )}
 
       <section className="space-y-2">
@@ -131,7 +195,7 @@ export default function SalonNightPage() {
           <button
             key={q.id}
             type="button"
-            disabled={!isHost || !q.userId}
+            disabled={!isHost || !q.userId || !accepting}
             className={`chip touch-target w-full text-left ${
               q.userId && picked.includes(q.userId) ? "ring-1 ring-[var(--brass)]" : ""
             }`}
@@ -148,13 +212,18 @@ export default function SalonNightPage() {
           <button
             type="button"
             className="btn-primary"
-            disabled={picked.length !== 2}
+            disabled={picked.length !== 2 || !accepting}
             onClick={() =>
               void act("pair", { a: picked[0]!, b: picked[1]! })
             }
           >
             Pair selected ({picked.length}/2)
           </button>
+          {!accepting && (
+            <p className="text-xs text-[var(--mist)]">
+              Pairing is paused outside the night window.
+            </p>
+          )}
           <button type="button" className="btn-ghost" onClick={() => void act("close")}>
             Close salon
           </button>
@@ -166,7 +235,7 @@ export default function SalonNightPage() {
           <p className="text-sm text-[var(--brass)]">Table {pair.code} ready</p>
           <div>
             <p className="mb-2 text-xs text-[var(--mist)]">
-              White · {pair.white.username}
+              White ┬À {pair.white.username}
             </p>
             <TableQr
               url={
@@ -180,7 +249,7 @@ export default function SalonNightPage() {
           </div>
           <div>
             <p className="mb-2 text-xs text-[var(--mist)]">
-              Black · {pair.black.username}
+              Black ┬À {pair.black.username}
             </p>
             <TableQr
               url={

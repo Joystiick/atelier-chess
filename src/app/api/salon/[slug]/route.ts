@@ -5,6 +5,12 @@ import { db } from "@/lib/db";
 import { games, salonNights, salonQueue, users } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
 import { getPusher, userChannel } from "@/lib/pusher/server";
+import {
+  isSalonAccepting,
+  isSalonChatMode,
+  salonWindowStatus,
+  themeLabel,
+} from "@/lib/salon/themes";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -35,6 +41,8 @@ export async function GET(_request: Request, { params }: Params) {
   const me = await readSession();
   const meId = me?.id;
   const isHost = meId === night.hostId;
+  const window = salonWindowStatus(night);
+  const accepting = window === "open";
 
   return NextResponse.json({
     night: {
@@ -43,6 +51,13 @@ export async function GET(_request: Request, { params }: Params) {
       name: night.name,
       status: night.status,
       timeControl: night.timeControl,
+      theme: night.theme,
+      themeLabel: themeLabel(night.theme),
+      chatMode: night.chatMode,
+      startsAt: night.startsAt,
+      endsAt: night.endsAt,
+      window,
+      accepting,
       isHost,
     },
     queue: queue.map((q, i) => ({
@@ -76,8 +91,17 @@ export async function POST(request: Request, { params }: Params) {
   };
 
   if (body.action === "join") {
-    if (night.status !== "open") {
-      return NextResponse.json({ error: "Salon closed" }, { status: 409 });
+    if (!isSalonAccepting(night)) {
+      const window = salonWindowStatus(night);
+      return NextResponse.json(
+        {
+          error:
+            window === "opens_at"
+              ? "Salon has not opened yet"
+              : "Salon closed",
+        },
+        { status: 409 },
+      );
     }
     if (night.hostId === me.id) {
       return NextResponse.json({ error: "Host stays at the desk" }, { status: 400 });
@@ -132,8 +156,17 @@ export async function POST(request: Request, { params }: Params) {
     if (night.hostId !== me.id) {
       return NextResponse.json({ error: "Host only" }, { status: 403 });
     }
-    if (night.status !== "open") {
-      return NextResponse.json({ error: "Salon closed" }, { status: 409 });
+    if (!isSalonAccepting(night)) {
+      const window = salonWindowStatus(night);
+      return NextResponse.json(
+        {
+          error:
+            window === "opens_at"
+              ? "Salon has not opened yet"
+              : "Salon closed",
+        },
+        { status: 409 },
+      );
     }
     const a = body.a;
     const b = body.b;
@@ -158,9 +191,15 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const tcId = (
-      night.timeControl in TIME_CONTROLS ? night.timeControl : "10|0"
+      night.theme === "bullet"
+        ? "3|2"
+        : night.timeControl in TIME_CONTROLS
+          ? night.timeControl
+          : "10|0"
     ) as TimeControlId;
     const tc = TIME_CONTROLS[tcId];
+    const chatMode = isSalonChatMode(night.chatMode) ? night.chatMode : "all";
+    const blindfoldCafe = night.theme === "blindfold";
     const whiteToken = generatePlayerToken();
     const blackToken = generatePlayerToken();
     let code = generateGameCode();
@@ -183,6 +222,8 @@ export async function POST(request: Request, { params }: Params) {
             timeControlMs: tc.baseMs,
             incrementMs: tc.incMs,
             salonNightId: night.id,
+            blindfoldCafe,
+            chatMode,
             rated: false,
             joinTicket: null,
           })
