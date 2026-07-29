@@ -1,6 +1,7 @@
 import { isValidCode } from "@/lib/codes";
 import { db } from "@/lib/db";
-import { games, moves } from "@/lib/db/schema";
+import { games, moves, salonNights } from "@/lib/db/schema";
+import { themeLabel } from "@/lib/salon/themes";
 import { asc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -34,6 +35,20 @@ export async function GET(_request: Request, { params }: Params) {
     if (color === "b" && token === game.blackToken) you = "b";
   }
 
+  let salonTheme: string | null = null;
+  let salonThemeLabel: string | null = null;
+  if (game.salonNightId) {
+    const [night] = await db
+      .select({ theme: salonNights.theme })
+      .from(salonNights)
+      .where(eq(salonNights.id, game.salonNightId))
+      .limit(1);
+    if (night) {
+      salonTheme = night.theme;
+      salonThemeLabel = themeLabel(night.theme);
+    }
+  }
+
   return NextResponse.json({
     code: game.code,
     status: game.status,
@@ -50,10 +65,15 @@ export async function GET(_request: Request, { params }: Params) {
     incrementMs: game.incrementMs,
     drawOfferBy: game.drawOfferBy,
     takebackOfferBy: game.takebackOfferBy,
+    banterLog: game.banterLog,
     blindfoldCafe: game.blindfoldCafe,
+    chatMode: game.chatMode,
+    salonNightId: game.salonNightId,
+    salonTheme,
+    salonThemeLabel,
     tablecast: game.tablecast,
     spectatorCount: game.spectatorCount,
-    /** Host-only — one-time QR seat ticket while waiting */
+    ghostLeague: game.ghostLeague,
     joinTicket: you === "w" && game.status === "waiting" ? game.joinTicket : null,
     you,
     spectator: you === null,
