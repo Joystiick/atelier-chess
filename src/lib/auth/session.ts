@@ -21,6 +21,8 @@ export type SessionUser = {
   avatarId: string;
   elo: number;
   gamesPlayed: number;
+  seasonElo?: number;
+  seasonKey?: string;
 };
 
 export async function hashPassword(password: string) {
@@ -105,6 +107,8 @@ export function publicUser(u: {
   avatarId: string;
   elo: number;
   gamesPlayed: number;
+  seasonElo?: number;
+  seasonKey?: string;
 }) {
   return {
     id: u.id,
@@ -113,5 +117,7 @@ export function publicUser(u: {
     avatarId: u.avatarId,
     elo: u.elo,
     gamesPlayed: u.gamesPlayed,
+    seasonElo: u.seasonElo ?? 1200,
+    seasonKey: u.seasonKey ?? "",
   };
 }

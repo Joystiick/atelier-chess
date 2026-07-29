@@ -19,6 +19,8 @@ export type AuthUser = {
   avatarId: string;
   elo: number;
   gamesPlayed: number;
+  seasonElo?: number;
+  seasonKey?: string;
 };
 
 type AuthCtx = {
