@@ -27,11 +27,36 @@ export async function GET(_request: Request, { params }: Params) {
       username: users.username,
       elo: users.elo,
       avatarId: users.avatarId,
+      presence: users.presence,
+      lastSeenAt: users.lastSeenAt,
+      activeGameCode: users.activeGameCode,
       joinedAt: clubMembers.joinedAt,
     })
     .from(clubMembers)
     .innerJoin(users, eq(users.id, clubMembers.userId))
     .where(eq(clubMembers.clubId, club.id));
+
+  const FREE_MS = 3 * 60 * 1000;
+  const now = Date.now();
+  const serialized = members.map((m) => {
+    const lastSeenMs = m.lastSeenAt.getTime();
+    const fresh = now - lastSeenMs < FREE_MS;
+    const free =
+      fresh &&
+      (m.presence === "online" || m.presence === "lfg") &&
+      !m.activeGameCode;
+    return {
+      userId: m.userId,
+      username: m.username,
+      elo: m.elo,
+      avatarId: m.avatarId,
+      presence: m.presence,
+      lastSeenAt: m.lastSeenAt.toISOString(),
+      activeGameCode: m.activeGameCode,
+      joinedAt: m.joinedAt.toISOString(),
+      free,
+    };
+  });
 
   return NextResponse.json({
     club: {
@@ -41,8 +66,9 @@ export async function GET(_request: Request, { params }: Params) {
       description: club.description,
       openTableCode: club.openTableCode,
       ownerId: club.ownerId,
+      invitePath: `/clubs/${club.slug}?invite=1`,
     },
-    members,
+    members: serialized,
   });
 }
 

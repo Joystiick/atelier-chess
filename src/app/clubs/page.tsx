@@ -113,7 +113,12 @@ export default function ClubsPage() {
               href={`/clubs/${c.slug}`}
               className="block rounded-lg bg-[var(--panel)] px-3 py-2 hover:ring-1 hover:ring-[var(--brass)]"
             >
-              <p className="text-[var(--cream)]">{c.name}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[var(--cream)]">{c.name}</p>
+                {c.openTableCode && (
+                  <span className="chip shrink-0 text-xs">Table open</span>
+                )}
+              </div>
               <p className="truncate text-xs text-[var(--mist)]">{c.description}</p>
             </Link>
           ))}
@@ -131,7 +136,12 @@ export default function ClubsPage() {
             href={`/clubs/${c.slug}`}
             className="block rounded-lg bg-[var(--panel)] px-3 py-2 hover:ring-1 hover:ring-[var(--brass)]"
           >
-            <p className="text-[var(--cream)]">{c.name}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[var(--cream)]">{c.name}</p>
+              {c.openTableCode && (
+                <span className="chip shrink-0 text-xs">Table open</span>
+              )}
+            </div>
             <p className="truncate text-xs text-[var(--mist)]">{c.description || "—"}</p>
           </Link>
         ))}
