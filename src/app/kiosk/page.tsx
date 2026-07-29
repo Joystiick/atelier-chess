@@ -7,10 +7,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 const KIOSK_POLL_MS = 4_000;
+const LOCK_KEY = "atelier.kioskLocked";
 
 type Slot = {
   token: string;
-  user: { id: string; username: string; elo: number } | null;
+  user: { id: string | null; username: string; elo: number; guest?: boolean } | null;
 };
 
 type Pair = {
@@ -26,11 +27,22 @@ export default function KioskPage() {
   const [tc, setTc] = useState<TimeControlId>("10|0");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [unlockHold, setUnlockHold] = useState(0);
 
   const origin =
     typeof window !== "undefined"
       ? window.location.origin
       : "https://atelierchess.netlify.app";
+
+  useEffect(() => {
+    setLocked(localStorage.getItem(LOCK_KEY) === "1");
+  }, []);
+
+  const setLock = (on: boolean) => {
+    setLocked(on);
+    localStorage.setItem(LOCK_KEY, on ? "1" : "0");
+  };
 
   const openBooth = async () => {
     setBusy(true);
@@ -60,7 +72,9 @@ export default function KioskPage() {
 
   const poll = useCallback(async () => {
     if (!booth) return;
-    const res = await fetch(`/api/kiosk?booth=${encodeURIComponent(booth)}&tc=${encodeURIComponent(tc)}`);
+    const res = await fetch(
+      `/api/kiosk?booth=${encodeURIComponent(booth)}&tc=${encodeURIComponent(tc)}`,
+    );
     const data = await res.json();
     if (!res.ok) return;
     setSlots(data.slots ?? []);
@@ -74,20 +88,33 @@ export default function KioskPage() {
   }, [booth, poll]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-2xl space-y-6 px-4 py-8">
+    <main
+      className={`mx-auto min-h-screen max-w-2xl space-y-6 px-4 py-8 ${
+        locked ? "bg-[var(--ink)]" : ""
+      }`}
+    >
       <div className="flex items-center justify-between">
-        <Link href="/play" className="text-sm text-[var(--mist)]">
-          ← Lobby
-        </Link>
+        {locked ? (
+          <p className="text-xs uppercase tracking-[0.25em] text-[var(--brass)]">
+            Café booth · locked
+          </p>
+        ) : (
+          <Link href="/play" className="text-sm text-[var(--mist)]">
+            ← Lobby
+          </Link>
+        )}
         <p className="text-xs uppercase tracking-[0.25em] text-[var(--brass)]">
-          Ranked walk-up
+          Local QR only
         </p>
       </div>
 
-      <h1 className="font-[family-name:var(--font-display)] text-4xl">Kiosk</h1>
+      <h1 className="font-[family-name:var(--font-display)] text-4xl">
+        {locked ? "Walk-up table" : "Kiosk"}
+      </h1>
       <p className="text-[var(--mist)]">
-        Leave this tablet at the desk. Players scan a slot QR on their phones to
-        sign in, then seat QRs appear when both are ready.
+        {locked
+          ? "Scan a slot on your phone. Guests welcome — no account needed. Seat QRs appear when both sides are ready."
+          : "Leave this tablet at the café or library desk. Players scan a local slot QR — sign in or join as guest — then seat QRs appear."}
       </p>
 
       {!booth && (
@@ -116,6 +143,13 @@ export default function KioskPage() {
           >
             {busy ? "Opening…" : "Open booth"}
           </button>
+          <button
+            type="button"
+            className="btn-ghost w-full"
+            onClick={() => setLock(true)}
+          >
+            Lock booth (hide lobby)
+          </button>
         </section>
       )}
 
@@ -127,27 +161,31 @@ export default function KioskPage() {
               {s.user ? (
                 <p className="font-[family-name:var(--font-display)] text-2xl">
                   {s.user.username}
-                  <span className="ml-2 text-sm text-[var(--mist)]">{s.user.elo}</span>
+                  <span className="ml-2 text-sm text-[var(--mist)]">
+                    {s.user.guest ? "guest" : s.user.elo}
+                  </span>
                 </p>
               ) : (
                 <TableQr
                   url={`${origin}/kiosk/join?t=${encodeURIComponent(s.token)}`}
                   size={160}
-                  label="Scan to sign in & claim slot"
+                  label="Scan to claim slot"
                 />
               )}
             </div>
           ))}
-          <button
-            type="button"
-            className="btn-ghost sm:col-span-2"
-            onClick={() => {
-              setBooth(null);
-              setSlots([]);
-            }}
-          >
-            Reset booth
-          </button>
+          {!locked && (
+            <button
+              type="button"
+              className="btn-ghost sm:col-span-2"
+              onClick={() => {
+                setBooth(null);
+                setSlots([]);
+              }}
+            >
+              Reset booth
+            </button>
+          )}
         </section>
       )}
 
@@ -180,6 +218,37 @@ export default function KioskPage() {
             Next booth
           </button>
         </section>
+      )}
+
+      {locked && (
+        <button
+          type="button"
+          className="chip w-full text-xs text-[var(--mist)]"
+          onPointerDown={() => {
+            const start = Date.now();
+            const id = window.setInterval(() => {
+              const held = Date.now() - start;
+              setUnlockHold(held);
+              if (held >= 2000) {
+                window.clearInterval(id);
+                setLock(false);
+                setUnlockHold(0);
+              }
+            }, 100);
+            const stop = () => {
+              window.clearInterval(id);
+              setUnlockHold(0);
+              window.removeEventListener("pointerup", stop);
+              window.removeEventListener("pointercancel", stop);
+            };
+            window.addEventListener("pointerup", stop);
+            window.addEventListener("pointercancel", stop);
+          }}
+        >
+          {unlockHold > 0
+            ? `Hold to unlock… ${Math.min(100, Math.round((unlockHold / 2000) * 100))}%`
+            : "Staff · hold 2s to unlock"}
+        </button>
       )}
 
       {error && <p className="text-red-300">{error}</p>}

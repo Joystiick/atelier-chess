@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth/requireUser";
+import { readSession } from "@/lib/auth/session";
 import {
   generateGameCode,
   generateJoinTicket,
@@ -7,8 +7,24 @@ import {
 import { db } from "@/lib/db";
 import { games, kioskSessions, users } from "@/lib/db/schema";
 import { TIME_CONTROLS, type TimeControlId } from "@/lib/names";
-import { and, eq, like, or } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { NextResponse } from "next/server";
+
+type SlotPerson = {
+  token: string;
+  user: { id: string | null; username: string; elo: number; guest: boolean } | null;
+};
+
+function guestLabel(matchedCode: string | null): string | null {
+  if (!matchedCode?.startsWith("guest:")) return null;
+  const name = matchedCode.slice(6).trim().slice(0, 20);
+  return name || "Guest";
+}
+
+function sanitizeGuestName(raw: string): string {
+  const cleaned = raw.trim().replace(/\s+/g, " ").slice(0, 20);
+  return cleaned || `Guest${Math.floor(Math.random() * 900 + 100)}`;
+}
 
 /** Create a walk-up booth with two phone QR slots. */
 export async function POST(request: Request) {
@@ -59,19 +75,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Booth not found" }, { status: 404 });
   }
 
-  const people = await Promise.all(
+  const people: SlotPerson[] = await Promise.all(
     slots.map(async (s) => {
-      if (!s.userId) {
+      if (s.userId) {
+        const [u] = await db.select().from(users).where(eq(users.id, s.userId)).limit(1);
         return {
           token: s.token,
-          user: null as null | { id: string; username: string; elo: number },
+          user: u
+            ? { id: u.id, username: u.username, elo: u.elo, guest: false }
+            : null,
         };
       }
-      const [u] = await db.select().from(users).where(eq(users.id, s.userId)).limit(1);
-      return {
-        token: s.token,
-        user: u ? { id: u.id, username: u.username, elo: u.elo } : null,
-      };
+      const guest = guestLabel(s.matchedCode);
+      if (guest) {
+        return {
+          token: s.token,
+          user: { id: null, username: guest, elo: 1200, guest: true },
+        };
+      }
+      return { token: s.token, user: null };
     }),
   );
 
@@ -103,12 +125,17 @@ export async function GET(request: Request) {
   } else if (ready && people[0]?.user && people[1]?.user) {
     const a = people[0].user;
     const b = people[1].user;
-    const white = a.elo >= b.elo ? a : b;
-    const black = white.id === a.id ? b : a;
+    let w = a;
+    let bl = b;
+    if (!a.guest && !b.guest) {
+      w = a.elo >= b.elo ? a : b;
+      bl = w === a ? b : a;
+    }
     const tcKey = tcId in TIME_CONTROLS ? tcId : ("10|0" as TimeControlId);
     const tc = TIME_CONTROLS[tcKey];
     const whiteToken = generatePlayerToken();
     const blackToken = generatePlayerToken();
+    const anyGuest = w.guest || bl.guest;
     let code = generateGameCode();
     for (let i = 0; i < 5; i++) {
       try {
@@ -117,17 +144,17 @@ export async function GET(request: Request) {
           .values({
             code,
             status: "active",
-            whiteName: white.username,
-            blackName: black.username,
+            whiteName: w.username,
+            blackName: bl.username,
             whiteToken,
             blackToken,
-            whiteUserId: white.id,
-            blackUserId: black.id,
+            whiteUserId: w.id,
+            blackUserId: bl.id,
             whiteClockMs: tc.baseMs,
             blackClockMs: tc.baseMs,
             timeControlMs: tc.baseMs,
             incrementMs: tc.incMs,
-            rated: true,
+            rated: !anyGuest,
           })
           .returning();
 
@@ -142,11 +169,11 @@ export async function GET(request: Request) {
         pair = {
           code: row.code,
           white: {
-            username: white.username,
+            username: w.username,
             seatPath: `/seat/${row.code}?c=w&t=${whiteToken}`,
           },
           black: {
-            username: black.username,
+            username: bl.username,
             seatPath: `/seat/${row.code}?c=b&t=${blackToken}`,
           },
         };
@@ -166,13 +193,13 @@ export async function GET(request: Request) {
   });
 }
 
-/** Phone claims a slot after login. */
+/** Phone claims a slot — account or guest seat token. */
 export async function PUT(request: Request) {
-  const auth = await requireUser();
-  if (auth.error) return auth.error;
-  const me = auth.user;
-
-  const body = (await request.json().catch(() => ({}))) as { token?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    token?: string;
+    guestName?: string;
+    asGuest?: boolean;
+  };
   const token = body.token?.trim() ?? "";
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -184,7 +211,30 @@ export async function PUT(request: Request) {
     .where(eq(kioskSessions.token, token))
     .limit(1);
   if (!slot) return NextResponse.json({ error: "Slot not found" }, { status: 404 });
+
+  const me = await readSession();
+  const wantGuest = Boolean(body.asGuest) || (!me && Boolean(body.guestName));
+
+  if (wantGuest) {
+    if (slot.userId || guestLabel(slot.matchedCode)) {
+      return NextResponse.json({ error: "Slot already taken" }, { status: 409 });
+    }
+    const name = sanitizeGuestName(body.guestName ?? "");
+    await db
+      .update(kioskSessions)
+      .set({ userId: null, matchedCode: `guest:${name}` })
+      .where(eq(kioskSessions.token, token));
+    return NextResponse.json({ ok: true, token, guest: true, username: name });
+  }
+
+  if (!me) {
+    return NextResponse.json({ error: "Sign in or join as guest" }, { status: 401 });
+  }
+
   if (slot.userId && slot.userId !== me.id) {
+    return NextResponse.json({ error: "Slot already taken" }, { status: 409 });
+  }
+  if (!slot.userId && guestLabel(slot.matchedCode)) {
     return NextResponse.json({ error: "Slot already taken" }, { status: 409 });
   }
 
@@ -209,10 +259,8 @@ export async function PUT(request: Request) {
 
   await db
     .update(kioskSessions)
-    .set({ userId: me.id })
+    .set({ userId: me.id, matchedCode: null })
     .where(eq(kioskSessions.token, token));
 
-  return NextResponse.json({ ok: true, token });
+  return NextResponse.json({ ok: true, token, guest: false });
 }
-
-void or;

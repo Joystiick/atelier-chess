@@ -62,7 +62,12 @@ function matchesPrefix(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+function isKioskJoinPath(pathname: string) {
+  return pathname === "/kiosk/join" || pathname.startsWith("/kiosk/join/");
+}
+
 function isDesktopOnlyPath(pathname: string) {
+  if (isKioskJoinPath(pathname)) return false;
   if (DESKTOP_ONLY_EXACT.includes(pathname)) return true;
   return matchesPrefix(pathname, DESKTOP_ONLY_PREFIXES);
 }
@@ -89,6 +94,11 @@ export async function middleware(request: NextRequest) {
     const downloadUrl = new URL("/download", request.url);
     downloadUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(downloadUrl);
+  }
+
+  // Phone QR guest join — no account required for café kiosk seats
+  if (isKioskJoinPath(pathname)) {
+    return NextResponse.next();
   }
 
   if (!matchesPrefix(pathname, AUTH_PREFIXES)) {
