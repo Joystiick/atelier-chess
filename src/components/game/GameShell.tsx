@@ -3,6 +3,8 @@
 import { ChessBoard, type BoardPiece } from "@/components/board/ChessBoard";
 import { ChessPiece } from "@/components/board/ChessPiece";
 import { GameOverOverlay } from "@/components/game/GameOverOverlay";
+import { TableQr } from "@/components/game/TableQr";
+import { TablecastQrDock } from "@/components/game/TablecastQrDock";
 import { VoiceRoom } from "@/components/game/VoiceRoom";
 import { WaitingRoom } from "@/components/game/WaitingRoom";
 import { useAmbient } from "@/lib/chess/ambient";
@@ -112,6 +114,12 @@ type GameShellProps =
       rated?: boolean;
       joinTicket?: string | null;
       blindfoldCafe?: boolean;
+      /** Desktop table + phone seats + gallery */
+      tablecast?: boolean;
+      spectatorCount?: number;
+      onTablecastChange?: (on: boolean) => void;
+      /** Compact phone seat UI for Tablecast */
+      phoneController?: boolean;
       onLocalMove?: (uci: string, san: string, fen: string) => Promise<{
         whiteClockMs?: number;
         blackClockMs?: number;
@@ -234,6 +242,11 @@ export function GameShell(props: GameShellProps) {
   const [joinTicket, setJoinTicket] = useState(
     props.mode === "human" ? (props.joinTicket ?? "") : "",
   );
+  const [tablecastOn, setTablecastOn] = useState(
+    props.mode === "human" ? Boolean(props.tablecast) : false,
+  );
+  const [phoneRemoteUrl, setPhoneRemoteUrl] = useState<string | null>(null);
+  const [phoneRemoteMsg, setPhoneRemoteMsg] = useState("");
   const [tableSettingsOpen, setTableSettingsOpen] = useState(false);
   const [pieceSet, setPieceSetState] = useState<PieceSetId>("classic");
   const [moodId, setMoodId] = useState<MoodId | null>(null);
@@ -273,10 +286,7 @@ export function GameShell(props: GameShellProps) {
     setMoodId(mood);
     if (mood) {
       const pack = MOOD_PACKS[mood];
-      if (pack.theme in BOARD_THEMES) {
-        setTheme(pack.theme as BoardTheme);
-        setBoardTheme(pack.theme as BoardTheme);
-      }
+      // Mood owns ambient only; table skin keeps board squares.
       setAmbientMode(pack.ambient);
       setAmbient(pack.ambient);
     }
@@ -285,11 +295,23 @@ export function GameShell(props: GameShellProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (props.mode === "human") {
+      setTablecastOn(Boolean(props.tablecast));
+    }
+  }, [props]);
+
   useAmbient(ambient);
 
   const playerColor =
     props.mode === "ai" ? (props.playerColor ?? "w") : props.playerColor;
   const spectator = props.mode === "human" && Boolean(props.spectator);
+  const tablecast =
+    props.mode === "human" && (tablecastOn || Boolean(props.tablecast));
+  const phoneController =
+    props.mode === "human" && Boolean(props.phoneController) && !spectator;
+  const spectatorCount =
+    props.mode === "human" ? (props.spectatorCount ?? 0) : 0;
   const remoteFen = props.mode === "human" ? props.remoteFen : null;
   const remoteResult = props.mode === "human" ? props.remoteResult : null;
   const humanStatus = props.mode === "human" ? props.status : null;
@@ -992,10 +1014,6 @@ export function GameShell(props: GameShellProps) {
     setMoodId(next);
     setMood(next);
     const pack = MOOD_PACKS[next];
-    if (pack.theme in BOARD_THEMES) {
-      setTheme(pack.theme as BoardTheme);
-      setBoardTheme(pack.theme as BoardTheme);
-    }
     setAmbientMode(pack.ambient);
     setAmbient(pack.ambient);
   };
@@ -1527,6 +1545,59 @@ export function GameShell(props: GameShellProps) {
             </div>
           )}
         </div>
+
+        {props.mode === "human" &&
+          !spectator &&
+          humanStatus === "active" && (
+            <div className="panel space-y-3">
+              <h2 className="panel-title">Phone remote</h2>
+              <p className="text-xs text-[var(--mist)]">
+                Clocks, draw, resign, and emotes on your phone. Moves stay here.
+              </p>
+              <button
+                type="button"
+                className="chip touch-target w-full"
+                onClick={() => {
+                  void (async () => {
+                    setPhoneRemoteMsg("");
+                    const res = await fetch(`/api/games/${props.code}/handoff`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "create" }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setPhoneRemoteMsg(data.error ?? "Could not create handoff");
+                      return;
+                    }
+                    const path = `${data.urlPath as string}&next=remote`;
+                    setPhoneRemoteUrl(`${window.location.origin}${path}`);
+                  })();
+                }}
+              >
+                {phoneRemoteUrl ? "Refresh QR" : "Show companion QR"}
+              </button>
+              {phoneRemoteUrl && (
+                <div className="space-y-2">
+                  <TableQr
+                    url={phoneRemoteUrl}
+                    size={140}
+                    label="Scan for phone remote"
+                  />
+                  <button
+                    type="button"
+                    className="chip touch-target"
+                    onClick={() => void navigator.clipboard.writeText(phoneRemoteUrl)}
+                  >
+                    Copy remote link
+                  </button>
+                </div>
+              )}
+              {phoneRemoteMsg && (
+                <p className="text-sm text-red-300">{phoneRemoteMsg}</p>
+              )}
+            </div>
+          )}
 
         {props.mode === "human" && !spectator && (
           <div className="panel">

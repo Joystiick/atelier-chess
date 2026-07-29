@@ -2,6 +2,8 @@ export type BoardTheme =
   | "salon-emerald"
   | "midnight-brass"
   | "library-oak"
+  | "carrara-marble"
+  | "cafe-cloth"
   | "rain-glass"
   | "ink-wash"
   | "opera-box";
@@ -21,9 +23,10 @@ export const TIME_CONTROLS: Record<
   "15|10": { label: "15+10 Rapid", baseMs: 900_000, incMs: 10_000 },
 };
 
+/** Square colors + optional board-frame CSS modifier. Skin owns squares; mood owns ambient. */
 export const BOARD_THEMES: Record<
   BoardTheme,
-  { label: string; unlockAt: number; light: string; dark: string }
+  { label: string; unlockAt: number; light: string; dark: string; frame?: string }
 > = {
   "salon-emerald": {
     label: "Salon Emerald",
@@ -38,10 +41,25 @@ export const BOARD_THEMES: Record<
     dark: "#1a2330",
   },
   "library-oak": {
-    label: "Library Oak",
-    unlockAt: 3,
+    label: "Walnut Wood",
+    unlockAt: 0,
     light: "#e8d5b5",
     dark: "#6b4423",
+    frame: "board-frame--walnut-wood",
+  },
+  "carrara-marble": {
+    label: "Carrara Marble",
+    unlockAt: 0,
+    light: "#f4f1ea",
+    dark: "#9a9b9e",
+    frame: "board-frame--carrara-marble",
+  },
+  "cafe-cloth": {
+    label: "Café Cloth",
+    unlockAt: 0,
+    light: "#d4dbc0",
+    dark: "#3a5c3f",
+    frame: "board-frame--cafe-cloth",
   },
   "rain-glass": {
     label: "Rain on Glass",

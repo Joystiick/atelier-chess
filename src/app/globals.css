@@ -509,6 +509,33 @@ body.desktop-client .hero-foot {
   will-change: transform;
 }
 
+/* Table skin frames — soft felt/wood/stone edge; skin owns squares */
+.board-frame {
+  isolation: isolate;
+}
+
+.board-frame--walnut-wood {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 3px #5a3a1f,
+    inset 0 0 0 5px #c4a06a;
+}
+
+.board-frame--carrara-marble {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 3px #d8d6d0,
+    inset 0 0 0 5px #8e9094;
+}
+
+.board-frame--cafe-cloth {
+  border-radius: 0.35rem;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 4px #2a4530,
+    inset 0 0 12px 2px rgba(40, 70, 48, 0.45);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .starfield-layer {
     animation: none !important;

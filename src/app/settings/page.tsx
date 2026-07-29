@@ -2,11 +2,16 @@
 
 import { UserChip, useAuth } from "@/components/auth/AuthProvider";
 import {
+  BOARD_THEMES,
   getAmbient,
+  getBoardTheme,
   getSoundEnabled,
+  isThemeUnlocked,
   setAmbient,
+  setBoardTheme,
   setSoundEnabled,
   type AmbientMode,
+  type BoardTheme,
 } from "@/lib/names";
 import {
   getBlindfold,
@@ -42,6 +47,7 @@ export default function SettingsPage() {
   const [blindfold, setBlind] = useState(false);
   const [lampAuto, setLamp] = useState(true);
   const [pieceSet, setPiece] = useState<PieceSetId>("classic");
+  const [boardTheme, setBoardThemeState] = useState<BoardTheme>("salon-emerald");
   const [mood, setMoodState] = useState<MoodId | "">("");
   const [ambient, setAmbientState] = useState<AmbientMode>("off");
   const [saved, setSaved] = useState(false);
@@ -58,6 +64,7 @@ export default function SettingsPage() {
     setBlind(getBlindfold());
     setLamp(getLampAuto());
     setPiece(getPieceSet());
+    setBoardThemeState(getBoardTheme());
     setMoodState(getMood() ?? "");
     setAmbientState(getAmbient());
   }, []);
@@ -70,6 +77,7 @@ export default function SettingsPage() {
     setBlindfold(blindfold);
     setLampAuto(lampAuto);
     setPieceSet(pieceSet);
+    setBoardTheme(boardTheme);
     setMood(mood || null);
     if (mood) {
       setAmbient(MOOD_PACKS[mood].ambient);
@@ -109,6 +117,10 @@ export default function SettingsPage() {
     </label>
   );
 
+  const unlockedThemes = (Object.keys(BOARD_THEMES) as BoardTheme[]).filter(
+    isThemeUnlocked,
+  );
+
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 px-4 py-10">
       <div className="flex items-center justify-between">
@@ -128,6 +140,21 @@ export default function SettingsPage() {
         <Toggle label="Coach mode" value={coach} onChange={setCoach} />
         <Toggle label="Blindfold" value={blindfold} onChange={setBlind} />
         <Toggle label="Lamp auto (by hour)" value={lampAuto} onChange={setLamp} />
+
+        <label className="block text-sm">
+          Table skin
+          <select
+            className="field mt-1"
+            value={boardTheme}
+            onChange={(e) => setBoardThemeState(e.target.value as BoardTheme)}
+          >
+            {unlockedThemes.map((id) => (
+              <option key={id} value={id}>
+                {BOARD_THEMES[id].label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <label className="block text-sm">
           Piece set

@@ -15,6 +15,7 @@ export const PIECE_SETS: Record<
 
 export type MoodId = "salon" | "midnight" | "rain" | "opera";
 
+/** Mood owns ambient/vignette bias only; theme is a soft suggestion, not applied over table skins. */
 export const MOOD_PACKS: Record<
   MoodId,
   { label: string; theme: string; ambient: "off" | "rain" | "room" | "hall" }

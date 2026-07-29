@@ -156,11 +156,13 @@ export function ChessBoard({
   }, [lastMove, pieces, orientation, boardSize]);
 
   const hideSquare = fly ? lastMove?.to : null;
+  const frameMod = BOARD_THEMES[theme].frame;
+  const frameClass = ["board-frame", frameMod].filter(Boolean).join(" ");
 
   return (
     <div
       ref={boardRef}
-      className="board-frame relative aspect-square w-full max-w-[min(92vw,560px)] overflow-hidden rounded-sm shadow-[0_24px_60px_rgba(0,0,0,0.55)] ring-1 ring-white/10"
+      className={`${frameClass} relative aspect-square w-full max-w-[min(92vw,560px)] overflow-hidden rounded-sm shadow-[0_24px_60px_rgba(0,0,0,0.55)] ring-1 ring-white/10`}
       role="grid"
       aria-label="Chess board"
     >
