@@ -8,8 +8,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const WATCH_POLL_MS = 8_000;
+const MOVE_FEED_LIMIT = 24;
 
 const REACTIONS = ["👏", "😮", "🔥", "♟️", "☕", "😂"] as const;
+
+type MoveSnap = {
+  ply: number;
+  san: string;
+};
 
 type Snap = {
   code: string;
@@ -19,7 +25,36 @@ type Snap = {
   blackName: string | null;
   turn: string;
   result: string | null;
+  moves?: MoveSnap[];
 };
+
+type MovePair = {
+  num: number;
+  white: string | null;
+  black: string | null;
+};
+
+function sparseMovePairs(moves: MoveSnap[], limit = MOVE_FEED_LIMIT): MovePair[] {
+  const slice = moves.slice(-limit);
+  const pairs: MovePair[] = [];
+  for (const m of slice) {
+    const num = Math.ceil(m.ply / 2);
+    const isWhite = m.ply % 2 === 1;
+    const last = pairs[pairs.length - 1];
+    if (!last || last.num !== num) {
+      pairs.push({
+        num,
+        white: isWhite ? m.san : null,
+        black: isWhite ? null : m.san,
+      });
+    } else if (isWhite) {
+      last.white = m.san;
+    } else {
+      last.black = m.san;
+    }
+  }
+  return pairs;
+}
 
 export default function WatchPage() {
   const params = useParams<{ code: string }>();
@@ -78,6 +113,12 @@ export default function WatchPage() {
     };
   }, [code]);
 
+  const moves = snap?.moves ?? [];
+  const pairs = sparseMovePairs(moves);
+  const waitingForFirst =
+    moves.length === 0 &&
+    (snap?.status === "waiting" || snap?.status === "active");
+
   const react = async (emoji: string) => {
     await fetch(`/api/games/${code}/react`, {
       method: "POST",
@@ -125,23 +166,51 @@ export default function WatchPage() {
         {snap.result ? ` · ${snap.result}` : ""}
       </p>
 
-      <div className="panel relative overflow-hidden py-10 text-center">
-        <p className="font-mono text-xs text-[var(--mist)] break-all px-2">{snap.fen}</p>
-        <p className="mt-3 text-sm text-[var(--cream)]">
-          Turn: {snap.turn === "w" ? "White" : "Black"}
-        </p>
+      <section className="panel relative overflow-hidden" aria-live="polite" aria-label="Move feed">
+        <h2 className="panel-title">Commentary</h2>
+
+        {snap.status === "finished" && snap.result ? (
+          <p className="mb-3">
+            <span className="chip pointer-events-none border-[var(--brass)] text-[var(--brass)]">
+              {snap.result}
+            </span>
+          </p>
+        ) : null}
+
+        {waitingForFirst ? (
+          <p className="py-6 text-center text-sm text-[var(--mist)]">Waiting for first move</p>
+        ) : pairs.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[var(--mist)]">Waiting for first move</p>
+        ) : (
+          <ol className="flex flex-wrap gap-x-3 gap-y-2 font-mono text-sm text-[var(--cream)]">
+            {pairs.map((p) => (
+              <li key={p.num} className="inline-flex items-baseline gap-1.5">
+                <span className="text-[var(--brass)]">{p.num}.</span>
+                <span className="chip pointer-events-none px-2 py-0.5 text-sm">
+                  {p.white ?? "…"}
+                </span>
+                {p.black ? (
+                  <span className="chip pointer-events-none px-2 py-0.5 text-sm">{p.black}</span>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {snap.status !== "finished" && moves.length > 0 ? (
+          <p className="mt-4 text-sm text-[var(--mist)]">
+            Turn: {snap.turn === "w" ? "White" : "Black"}
+          </p>
+        ) : null}
+
         <div className="pointer-events-none absolute inset-0 flex flex-wrap items-end justify-center gap-2 p-4">
           {burst.map((b) => (
-            <span
-              key={b.id}
-              className="animate-bounce text-3xl"
-              title={b.from}
-            >
+            <span key={b.id} className="animate-bounce text-3xl" title={b.from}>
               {b.emoji}
             </span>
           ))}
         </div>
-      </div>
+      </section>
 
       <label className="block text-left text-xs text-[var(--mist)]">
         Display name
@@ -152,7 +221,7 @@ export default function WatchPage() {
         />
       </label>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Reactions">
         {REACTIONS.map((e) => (
           <button
             key={e}
