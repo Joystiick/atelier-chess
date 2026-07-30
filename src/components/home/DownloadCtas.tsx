@@ -50,9 +50,10 @@ function DownloadCta({ label, href, primary, available }: CtaProps) {
 }
 
 export function DownloadCtas() {
-  const { isDesktop } = useDesktopClient();
+  const { isDesktop, ready } = useDesktopClient();
   const [latest, setLatest] = useState<DesktopLatest | null>(null);
   const [os, setOs] = useState<OsKind>("other");
+  const [openingPlay, setOpeningPlay] = useState(false);
 
   useEffect(() => {
     setOs(detectOs());
@@ -87,15 +88,37 @@ export function DownloadCtas() {
     return [windows, macintosh];
   }, [os, win, mac, winOk, macOk]);
 
+  if (!ready) {
+    return (
+      <div className="hero-reveal hero-reveal-delay-2 mt-10 flex flex-col items-center gap-3">
+        <span
+          className="btn-primary inline-flex min-w-[12rem] cursor-wait items-center justify-center opacity-55"
+          aria-busy="true"
+        >
+          Loading…
+        </span>
+      </div>
+    );
+  }
+
   if (isDesktop) {
     return (
       <div className="hero-reveal hero-reveal-delay-2 mt-10 flex flex-col items-center gap-3">
-        <Link
+        {/* Hard navigation avoids soft-nav blank shells when a SW was active. */}
+        <a
           href="/play"
           className="btn-primary inline-flex min-w-[12rem] items-center justify-center no-underline"
+          aria-disabled={openingPlay}
+          onClick={(e) => {
+            if (openingPlay) {
+              e.preventDefault();
+              return;
+            }
+            setOpeningPlay(true);
+          }}
         >
-          Open Play
-        </Link>
+          {openingPlay ? "Opening…" : "Open Play"}
+        </a>
         <p className="text-xs text-[var(--mist)]">
           Desktop client{latest?.version ? ` · v${latest.version}` : ""}
         </p>

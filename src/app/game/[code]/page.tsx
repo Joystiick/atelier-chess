@@ -1,6 +1,7 @@
 "use client";
 
 import { GameShell } from "@/components/game/GameShell";
+import { LoadingStatus } from "@/components/ui/LoadingStatus";
 import { startVisibilityAwareInterval } from "@/lib/poll";
 import { getPusherClient } from "@/lib/pusher/client";
 import { pushRecentTable, setLastOpponent } from "@/lib/names";
@@ -103,10 +104,12 @@ function GamePageInner() {
 
   useEffect(() => {
     let cancelled = false;
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 15_000);
 
     const load = async () => {
       try {
-        const res = await fetch(`/api/games/${code}`);
+        const res = await fetch(`/api/games/${code}`, { signal: ctrl.signal });
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
@@ -123,14 +126,24 @@ function GamePageInner() {
         }
       } catch {
         if (!cancelled) {
-          startTransition(() => setError("Could not load table"));
+          startTransition(() =>
+            setError(
+              ctrl.signal.aborted
+                ? "Table took too long to load — try again"
+                : "Could not load table",
+            ),
+          );
         }
+      } finally {
+        window.clearTimeout(timer);
       }
     };
 
     void load();
     return () => {
       cancelled = true;
+      ctrl.abort();
+      window.clearTimeout(timer);
     };
   }, [code, applySnapshot]);
 
@@ -394,11 +407,7 @@ function GamePageInner() {
   }
 
   if (!snap) {
-    return (
-      <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-        Setting the table…
-      </main>
-    );
+    return <LoadingStatus message="Setting the table…" />;
   }
 
   const isSpectator = forceSpectate || !snap.you;
@@ -495,13 +504,7 @@ function GamePageInner() {
 
 export default function GamePage() {
   return (
-    <Suspense
-      fallback={
-        <main className="grid min-h-screen place-items-center text-[var(--mist)]">
-          Setting the table…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingStatus message="Setting the table…" />}>
       <GamePageInner />
     </Suspense>
   );
