@@ -158,6 +158,26 @@ async function stampDesktopCookie(): Promise<void> {
   }
 }
 
+/**
+ * Drop PWA service workers / Cache Storage for the app origin.
+ * Stale SW HTML for /play caused blank black shells and multi-click opens.
+ */
+async function clearStaleWebCaches(): Promise<void> {
+  const ses = session.fromPartition(PARTITION);
+  try {
+    await ses.clearStorageData({
+      storages: ["serviceworkers", "cachestorage"],
+    });
+  } catch (err) {
+    console.warn("[desktop] web cache clear failed", err);
+  }
+}
+
+async function prepareDesktopSession(): Promise<void> {
+  await stampDesktopCookie();
+  await clearStaleWebCaches();
+}
+
 /** Mark every cloud request as coming from the desktop shell (middleware + APIs). */
 function installDesktopRequestHeaders(): void {
   const ses = session.fromPartition(PARTITION);
@@ -241,7 +261,7 @@ function createWindow(): BrowserWindow {
       message: "The window crashed and will reload.",
       detail: details.reason,
     });
-    void stampDesktopCookie().then(() => {
+    void prepareDesktopSession().then(() => {
       if (!win.isDestroyed()) void win.loadURL(resolveAppUrl());
     });
   });
@@ -259,7 +279,7 @@ function createWindow(): BrowserWindow {
     }
   }
   pendingDeepLink = null;
-  void stampDesktopCookie().then(() => win.loadURL(start));
+  void prepareDesktopSession().then(() => win.loadURL(start));
 
   return win;
 }
