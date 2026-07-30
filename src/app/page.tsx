@@ -31,7 +31,8 @@ export default function HomePage() {
             Chess for your desk.
           </p>
           <p className="brand-sub hero-reveal hero-reveal-delay-2">
-            Native Windows and Mac apps with the same tables, codes, and AI.
+            Play in the desktop app. This site is for download — and phone QR
+            seats when you open a table.
           </p>
           <DownloadCtas />
         </div>
